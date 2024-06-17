@@ -7,6 +7,7 @@
 .bash_history.local
 data/*
 .vscode/*
+scripts/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
