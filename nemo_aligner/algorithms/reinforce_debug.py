@@ -33,10 +33,10 @@ from nemo_aligner.utils.ppo_utils import (
     calculate_kl_penalty,
     create_mask,
 )
-from nemo_aligner.utils.server_utils import FutureResult
+
 from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
-from nemo_aligner.utils.utils import clear_memory, cpu_dict, masked_mean
+from nemo_aligner.utils.utils import clear_memory, cpu_dict
 
 
 def compute_num_rollout_microbatches(dataloader):
@@ -46,7 +46,7 @@ def compute_num_rollout_microbatches(dataloader):
     )
 
 
-class ReinforceTrainer:
+class ReinforceDebugger:
     """Trainer to coordinate PPO training
     """
 
@@ -58,7 +58,6 @@ class ReinforceTrainer:
         scheduler,
         train_dataloader,
         val_dataloader,
-        rm_critic,
         logger,
         ckpt_callback,
         run_timer,
@@ -71,7 +70,6 @@ class ReinforceTrainer:
         self.scheduler = scheduler
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
-        self.rm_critic = rm_critic
         self.logger = logger
         self.ckpt_callback = ckpt_callback
         self.generation_iter = generation_iter
@@ -170,7 +168,7 @@ class ReinforceTrainer:
         for i in range(len(unique_prompts)):
             prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
             rloo_mat = (1 - torch.eye(len(prompt_idx))).to(reward_device)
-
+ 
             rloo = torch.matmul(rloo_mat, regularized_reward[prompt_idx]) / (len(prompt_idx) - 1)
             batch["baseline"][prompt_idx] = rloo
         return batch
@@ -180,9 +178,9 @@ class ReinforceTrainer:
         Function to select the RLOO baseline for each (prompt, response) pair in the batch
         '''
         self.model._sampling_params["use_greedy"] = True
-        # Get reward from unique prompts using greedy decoding'
+        # Get reward from unique prompts using greedy decoding
         greedy_batch = self.model.infer(inference_batch) # Note that critic mbs has to be set correctly
-        greedy_rewards = self.rm_critic.infer_rm_critic(greedy_batch).result().detach()
+        greedy_rewards = 1 / inference_batch["response_lengths"].unsqueeze(-1) * 200 #self.rm_critic.infer_rm_critic(greedy_batch).result().detach()
         init_policy_logprobs = self.model.get_init_policy_logprobs([greedy_batch])[0]
 
         if self.compute_init_policy_kl:
@@ -246,8 +244,7 @@ class ReinforceTrainer:
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
 
                     # Get reward and init_policy logprobs
-                    rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
-                    
+                    rewards = 1 / rollout_batch["response_lengths"].unsqueeze(-1) * 200 #self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
                     
 
@@ -290,8 +287,8 @@ class ReinforceTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
                 
-                rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
-                rollout_batch["rewards"] = rewards
+                rewards = 1 / rollout_batch["response_lengths"].unsqueeze(-1) * 200 #self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
+                rollout_batch["rewards"] = rewards.unsqueeze(-1)
                 rollout_batches.append(rollout_batch)
             
         return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
@@ -565,6 +562,7 @@ class ReinforceTrainer:
 
         monitor_candidates = {k: torch.tensor(v, dtype=torch.int32) for k, v in self.state_dict().items()}
         monitor_candidates.update(extra_candidates)
+
 
         self.ckpt_callback.custom_save(monitor_candidates=monitor_candidates, is_train_end=is_train_end)
 
