@@ -5,30 +5,30 @@ RLHF_SHARED_DIR="/lustre/fsw/portfolios/llmservice/projects/llmservice_modelalig
 DATA_DIR="/lustre/fsw/portfolios/llmservice/users/abukharin/test"
 WANDB_API_KEY="d5c9af701b905bfeadb7a5c7a4c2101afcbf3cc1"
 
-NAME="alex-reinforce-debug-inverse-true-lr1e-7-kl0.1-bsz32-rloo-debug5-klsum"
-COMMIT_ID=f100da2
+NAME="alex-reinforce-debug-inverse-lr1e-6-kl0.01-bsz32-rloo-debug-new"
+COMMIT_ID=3909fbf
 CONTAINER="${RLHF_SHARED_DIR}/containers/nemo-aligner:v2-022924-nemo-1.23.0.sqsh"
 
 echo "Starting job at $(date '+%Y-%m-%d %H:%M:%S')"
 
 RESULTS_DIR="${DATA_DIR}/exp/rlhf/${NAME}"
 mkdir -p ${RESULTS_DIR}
-NEMO_RLHF_DIR=${RESULTS_DIR}/nemo-aligner-alex-stable
+NEMO_RLHF_DIR=${RESULTS_DIR}/NeMo-Aligner
 
 pushd ${RESULTS_DIR}
 if [ ! -d "${NEMO_RLHF_DIR}" ]; then
     #git clone git@github.com:NVIDIA/NeMo-Aligner.git
-    git clone ssh://git@gitlab-master.nvidia.com:12051/abukharin/nemo-aligner-alex-stable.git
+    git clone https://github.com/abukharin3/NeMo-Aligner.git
 fi
 pushd ${NEMO_RLHF_DIR}
 git fetch origin
-git checkout -B test ${COMMIT_ID} || exit 1
+git checkout -B debug ${COMMIT_ID} || exit 1
 popd
 popd
 
 NUM_ROLLOUTS=32
 NORMALIZE="True"
-ACTOR_LR="3e-7"
+ACTOR_LR="1e-6"
 ACTOR_GBS=32
 CRITIC_GBS=64
 
@@ -107,7 +107,7 @@ export WANDB_API_KEY=${WANDB_API_KEY} \
     trainer.ppo.max_epochs=1 \
     trainer.ppo.max_steps=313 \
     trainer.ppo.max_steps=313 \
-    trainer.ppo.initial_policy_kl_penalty=0.1 \
+    trainer.ppo.initial_policy_kl_penalty=0.01 \
     trainer.ppo.val_check_interval=4 \
     trainer.num_nodes=16 \
     +trainer.ppo.beta=0.1 \

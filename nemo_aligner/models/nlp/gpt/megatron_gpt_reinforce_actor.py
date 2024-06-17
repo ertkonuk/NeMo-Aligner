@@ -34,7 +34,6 @@ from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo_aligner.models.alignable_interface import AlignableGenerativeInterface
 from nemo_aligner.utils.distributed import (
     broadcast_2d_tensor_within_pp,
-    calculate_distributed_entropy,
     from_parallel_logits_to_logprobs,
 )
 from nemo_aligner.utils.text_generation_utils import TrackLengthGPTModelTextGenerationStrategy
@@ -118,7 +117,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 # prev_log_probs = batch["prev_log_probs"]
                 tokens = batch["tokens"]
 
-                curr_log_probs = from_parallel_logits_to_logprobs(vocab_parallel_logits=parallel_logits, target=tokens)
+                curr_log_probs = from_parallel_logits_to_logprobs(vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True)
 
                 # scaled_entropy = torch.tensor(0.0, dtype=parallel_logits.dtype, device=parallel_logits.device)
                 # if self.entropy_bonus > 0:
@@ -218,7 +217,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
 
             def id_func(output_tensor, non_loss_data=True):
                 logprobs = from_parallel_logits_to_logprobs(
-                    vocab_parallel_logits=output_tensor, target=batch[0], inference_only=inference_only
+                    vocab_parallel_logits=output_tensor, target=batch[0], inference_only=inference_only, higher_stability=True
                 )
                 return logprobs
 

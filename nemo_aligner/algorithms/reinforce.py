@@ -273,7 +273,7 @@ class ReinforceTrainer:
                 print("kl", init_policy_logprobs.shape, current_batch["logprobs"].shape, init_policy_kl.shape, init_policy_kl.sum(-1))
                 mask = create_mask(values=current_batch["logprobs"], prompt_lengths=current_batch["prompt_lengths"], response_lengths=current_batch["response_lengths"])
                 current_batch["mask"] = mask
-                current_batch["init_policy_kl"] = (init_policy_kl * mask).sum(-1).unsqueeze(-1)
+                current_batch["init_policy_kl"] = (init_policy_kl * mask).mean(-1).unsqueeze(-1)
             
                 if self.cfg.baseline == "RLOO":
                     # baseline from https://arxiv.org/pdf/2402.14740
