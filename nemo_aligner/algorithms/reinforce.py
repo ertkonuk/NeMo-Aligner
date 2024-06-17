@@ -26,14 +26,11 @@ from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_sp
 from nemo.utils import logging
 from nemo_aligner.utils.distributed import (
     SyncTimer,
-    masked_global_mean_var,
-    normalize_tensor,
     pad_tensors_to_max_global_seq_len,
+    pad_batch
 )
 from nemo_aligner.utils.ppo_utils import (
-    calculate_advantages_and_returns,
     calculate_kl_penalty,
-    calculate_ppo_rewards,
     create_mask,
 )
 from nemo_aligner.utils.server_utils import FutureResult
@@ -119,50 +116,23 @@ class ReinforceTrainer:
             # NOTE: all items in rollout batch or out of this computation
             # must have a leading B dimension
             prompt_lengths = rollout_batch["prompt_lengths"]
-            response_lengths = rollout_batch["response_lengths"]
             response_tokens = rollout_batch["response_tokens"]
-            values = rollout_batch["values"]
-            rewards = rollout_batch["rewards"]
+            rewards = rollout_batch["rewards"] - self.cfg.initial_policy_kl_penalty * rollout_batch["init_policy_kl"]
             logprobs = rollout_batch["logprobs"]
+            mask = rollout_batch["mask"]
 
             num_samples += prompt_lengths.size(0)
 
-            if self.compute_init_policy_kl:
-                init_policy_kl = calculate_kl_penalty(
-                    log_probs_a=rollout_batch["logprobs"],
-                    log_probs_b=rollout_batch["init_logprobs"],
-                    use_absolute_kl=self.cfg.use_absolute_kl,
-                )
-            else:
-                init_policy_kl = torch.tensor(0, dtype=logprobs.dtype, device=logprobs.device)
-
-            rewards_with_kl = calculate_ppo_rewards(
-                values, rewards, response_lengths, init_policy_kl, self.cfg.initial_policy_kl_penalty
-            )
-            mask = create_mask(values=values, prompt_lengths=prompt_lengths, response_lengths=response_lengths)
-
-            # TODO(geshen): we may not need this mask
-            advantages, returns = calculate_advantages_and_returns(
-                values=values,
-                rewards=rewards_with_kl,
-                discount_factor=self.cfg.discount_factor,
-                gae_lambda=self.cfg.gae_lambda,
-                mask=mask,
-            )
-
             # collect everything we need to train PPO
             ppo_rollout_data["mask"].extend(post_process_tensor(mask))
-            ppo_rollout_data["advantages"].extend(post_process_tensor(advantages))
             ppo_rollout_data["prev_logprobs"].extend(post_process_tensor(logprobs))
             ppo_rollout_data["response_tokens"].extend(post_process_tensor(response_tokens))
-            # for the critic
-            ppo_rollout_data["values"].extend(post_process_tensor(values))
-            ppo_rollout_data["returns"].extend(post_process_tensor(returns))
+            ppo_rollout_data["rewards"].extend(post_process_tensor(rewards))
 
             # compute metrics
             # NOTE: this metric is not accumulated globally so it will differ between DP ranks
             ppo_rollout_metrics["init_policy_kl"] += (
-                masked_mean(init_policy_kl, mask, dim=-1).sum().item() if self.compute_init_policy_kl else 0
+                rollout_batch["init_policy_kl"].sum().item() if self.compute_init_policy_kl else 0
             )
 
         # average across the samples for the non global metrics
@@ -186,54 +156,143 @@ class ReinforceTrainer:
                 sequence_length_to_pad_to=rollout_batch_seq_length,
             )
 
-        mask = ppo_rollout_data["mask"]
-        for key in ["advantages", "returns", "values"]:
-            tensor = ppo_rollout_data[key]
-
-            global_mean, global_var = masked_global_mean_var(
-                tensor, mask, group=parallel_state.get_data_parallel_group(),
-            )
-            ppo_rollout_metrics[f"global_{key}_mean"] = global_mean.item()
-            ppo_rollout_metrics[f"global_{key}_std"] = global_var.sqrt().item()
-
-        if self.cfg.normalize_advantages:
-            ppo_rollout_data["advantages"] = normalize_tensor(
-                ppo_rollout_data["advantages"],
-                ppo_rollout_data["mask"],
-                group=parallel_state.get_data_parallel_group(),
-            )
-
         return ppo_rollout_data, cpu_dict(ppo_rollout_metrics)
+    
+    def get_rloo_baseline(self, batch):
+        '''
+        Function to select the RLOO baseline for each (prompt, response) pair in the batch
+        '''
+        unique_prompts = torch.unique(batch["prompt_tokens"], dim=0)
+        regularized_reward = batch["rewards"] - self.cfg.initial_policy_kl_penalty * batch["init_policy_kl"]
 
-    def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
+        batch["baseline"] = torch.zeros_like(batch["rewards"])
+        reward_device = batch["rewards"].get_device()
+        for i in range(len(unique_prompts)):
+            prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
+            rloo_mat = (1 - torch.eye(len(prompt_idx))).to(reward_device)
+
+            rloo = torch.matmul(rloo_mat, regularized_reward[prompt_idx]) / (len(prompt_idx) - 1)
+            batch["baseline"][prompt_idx] = rloo
+        return batch
+
+    def get_remax_baseline(self, inference_batch, batch):
+        '''
+        Function to select the RLOO baseline for each (prompt, response) pair in the batch
+        '''
+        self.model._sampling_params["use_greedy"] = True
+        # Get reward from unique prompts using greedy decoding'
+        greedy_batch = self.model.infer(inference_batch) # Note that critic mbs has to be set correctly
+        greedy_rewards = self.rm_critic.infer_rm_critic(greedy_batch).result().detach()
+        init_policy_logprobs = self.model.get_init_policy_logprobs([greedy_batch])[0]
+
+        if self.compute_init_policy_kl:
+            init_policy_kl = calculate_kl_penalty(
+                log_probs_a=greedy_batch["logprobs"],
+                log_probs_b=init_policy_logprobs,
+                use_absolute_kl=self.cfg.use_absolute_kl,
+            )
+        else:
+            init_policy_kl = torch.tensor(0, dtype=greedy_batch["logprobs"].dtype, device=greedy_batch["logprobs"].device)
+        
+        mask = create_mask(values=greedy_batch["logprobs"], prompt_lengths=greedy_batch["prompt_lengths"], response_lengths=greedy_batch["response_lengths"])
+        greedy_batch["mask"] = mask
+
+        init_policy_kl = (init_policy_kl * mask).mean(-1).unsqueeze(-1)
+        greedy_rewards = greedy_rewards - self.cfg.initial_policy_kl_penalty * init_policy_kl
+        unique_prompts = torch.unique(batch["prompt_tokens"], dim=0)
+        batch["baseline"] = torch.zeros_like(batch["rewards"])
+        for i in range(len(unique_prompts)):
+            prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
+            reward_idx = torch.arange(len(inference_batch["text"]))[(inference_batch["text"] == unique_prompts[i]).all(1)]
+            batch["baseline"][prompt_idx] = greedy_rewards[reward_idx][0]
+
+        self.model._sampling_params["use_greedy"] = False
+
+        return batch
+    
+    def run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
         """
         rollout_batches = []
-
-        for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
-            rollout_batch = self.model.infer(inference_batch)
-
-            rollout_batches.append(rollout_batch)
-            futures.append(self.rm_critic.infer_rm_critic(rollout_batch))
-
         if not is_validation:
-            init_policy_logprobs = self.model.get_init_policy_logprobs(rollout_batches)
+            for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
 
-            if init_policy_logprobs is not None:
-                assert len(init_policy_logprobs) == len(
-                    rollout_batches
-                ), "init policy log probs must be same size as rollout batches"
+                current_batch = None
+                inference_batch_duplicated = {
+                    'text':torch.concatenate([inference_batch['text']] * self.duplicate_prompts, dim=0),
+                    'length':torch.concatenate([inference_batch['length']] * self.duplicate_prompts, dim=0),
+                    'attention_mask':inference_batch['attention_mask'],
+                    'loss_mask':torch.concatenate([inference_batch['loss_mask']] * self.duplicate_prompts, dim=0),
+                    'position_ids':torch.concatenate([inference_batch['position_ids']] * self.duplicate_prompts, dim=0),
+                }
+                for _ in range(self.generation_iter):
+                    
+                    if current_batch is None:
+                        rollout_batch = self.model.infer(inference_batch_duplicated) # Note that critic mbs has to be set correctly
+                        current_batch = rollout_batch
+                        current_batch["prompt_tokens"] = inference_batch_duplicated["text"]
+                        
+                    else:
+                        rollout_batch = self.model.infer(inference_batch_duplicated)
+                        # Need to pad response tokens before concatenating
+                        current_batch["response_tokens"], rollout_batch["response_tokens"] = pad_batch(current_batch["response_tokens"], rollout_batch["response_tokens"], self.model.tokenizer.eos_id)
+                        current_batch["logprobs"], rollout_batch["logprobs"] = pad_batch(current_batch["logprobs"], rollout_batch["logprobs"], 0)
 
-                for init_logprobs, rollout_batch in zip(init_policy_logprobs, rollout_batches):
-                    rollout_batch["init_logprobs"] = init_logprobs
+                        # Concat tensors
+                        current_batch["response_tokens"] = torch.concatenate([current_batch["response_tokens"], rollout_batch["response_tokens"]], dim=0)
+                        current_batch["logprobs"] = torch.concatenate([current_batch["logprobs"], rollout_batch["logprobs"]], dim=0)
+                        current_batch["response_lengths"] = torch.concatenate([current_batch["response_lengths"], rollout_batch["response_lengths"]], dim=0)
+                        current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
+                        current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
+
+                    # Get reward and init_policy logprobs
+                    rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
+                    init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
+                    
+
+                    if "rewards" in current_batch:
+                        current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
+                        current_batch["init_logprobs"], _ = pad_batch(current_batch["init_logprobs"], init_policy_logprobs, 0)
+                        current_batch["init_logprobs"] = torch.concatenate([current_batch["init_logprobs"], init_policy_logprobs], dim=0)
+                    else:
+                        current_batch["rewards"] = rewards
+                        current_batch["init_logprobs"] = init_policy_logprobs
+
+                # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
+
+                if self.compute_init_policy_kl:
+                    init_policy_kl = calculate_kl_penalty(
+                        log_probs_a=current_batch["logprobs"],
+                        log_probs_b=current_batch["init_logprobs"],
+                        use_absolute_kl=self.cfg.use_absolute_kl,
+                    )
+                else:
+                    init_policy_kl = torch.tensor(0, dtype=current_batch["logprobs"].dtype, device=current_batch["logprobs"].device)
+                
+                print("kl", init_policy_logprobs.shape, current_batch["logprobs"].shape, init_policy_kl.shape, init_policy_kl.sum(-1))
+                mask = create_mask(values=current_batch["logprobs"], prompt_lengths=current_batch["prompt_lengths"], response_lengths=current_batch["response_lengths"])
+                current_batch["mask"] = mask
+                current_batch["init_policy_kl"] = (init_policy_kl * mask).sum(-1).unsqueeze(-1)
+            
+                if self.cfg.baseline == "RLOO":
+                    # baseline from https://arxiv.org/pdf/2402.14740
+                    current_batch = self.get_rloo_baseline(current_batch)
+                elif self.cfg.baseline == "ReMax":
+                    # baseline from https://arxiv.org/pdf/2310.10505
+                    current_batch = self.get_remax_baseline(inference_batch_duplicated, current_batch) # Use duplicated batch so forward batch size >= mbs
+                else:
+                    current_batch["baseline"] = torch.zeros_like(current_batch["rewards"])
+
+                rollout_batches.append(current_batch)
+
         else:
-            pass
-
-        for future, rollout_batch in zip(futures, rollout_batches, strict=True):
-            rewards, values = future.result() if isinstance(future, FutureResult) else future
-            rollout_batch["rewards"] = rewards
-            rollout_batch["values"] = values
-
+            for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
+                rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
+                
+                rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
+                rollout_batch["rewards"] = rewards
+                rollout_batches.append(rollout_batch)
+            
         return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
 
     def compute_global_rollout_metrics(self, rollout_batches):
