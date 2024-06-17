@@ -77,9 +77,8 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
         def fwd_output_and_loss_func(data_iterator, model):
             batch = next(data_iterator)
             response_tokens = batch["response_tokens"]
-            advantages = batch["advantages"]
             mask = batch["mask"]
-            prev_logprobs = batch["prev_logprobs"]
+            rewards = batch["rewards"]
 
             attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
                 data=response_tokens,
@@ -93,9 +92,8 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 "tokens": response_tokens,
                 "attention_mask": attention_mask,
                 "position_ids": position_ids,
-                "advantages": advantages,
-                "prev_log_probs": prev_logprobs,
                 "mask": mask,
+                "rewards":rewards
             }
 
             required_keys = set()
@@ -108,7 +106,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                     required_keys.update(("tokens", "position_ids"))
 
                 if parallel_state.is_pipeline_last_stage():
-                    required_keys.update(("tokens", "advantages", "mask", "prev_log_probs"))
+                    required_keys.update(("tokens", "mask"))
 
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
@@ -135,7 +133,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 reinforce_loss = -1 * curr_log_probs * rewards
                 # actor_loss = masked_mean(torch.max(loss1, loss2), mask)
                 # loss = actor_loss - scaled_entropy
-                loss = masked_mean(reinforce_loss)
+                loss = masked_mean(reinforce_loss, mask)
 
                 # with torch.no_grad():
                 #     ppo_ratio = masked_mean(ratios.detach(), mask)

@@ -210,7 +210,7 @@ class ReinforceTrainer:
 
         return batch
     
-    def run_inference(self, dataloader_iter, num_microbatches, is_validation):
+    def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
         """
         rollout_batches = []
@@ -455,10 +455,6 @@ class ReinforceTrainer:
                 ppo_rollout_data, metrics = self.generate_rollouts(dataloader_iter, num_rollout_micro_batches)
                 self.timer.stop("rollout_time")
                 timing_metrics["rollout_time"] = self.timer.get("rollout_time")
-
-                # send critic train
-                clear_memory()
-                self.rm_critic.train(ppo_rollout_data)
 
                 # logging
                 table_metrics = metrics.pop("table")
