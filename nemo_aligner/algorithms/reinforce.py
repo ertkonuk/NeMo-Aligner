@@ -280,7 +280,7 @@ class ReinforceTrainer:
                     current_batch = self.get_rloo_baseline(current_batch)
                 elif self.cfg.baseline == "ReMax":
                     # baseline from https://arxiv.org/pdf/2310.10505
-                    current_batch = self.get_remax_baseline(inference_batch_duplicated, current_batch) # Use duplicated batch so forward batch size >= mbs
+                    current_batch = self.get_remax_baseline(inference_batch, current_batch) # Use duplicated batch so forward batch size >= mbs
                 else:
                     current_batch["baseline"] = torch.zeros_like(current_batch["rewards"])
 
