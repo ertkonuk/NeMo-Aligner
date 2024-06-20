@@ -161,6 +161,7 @@ class ReinforceDebugger:
         '''
         Function to select the RLOO baseline for each (prompt, response) pair in the batch
         '''
+        print("rloo start")
         unique_prompts = torch.unique(batch["prompt_tokens"], dim=0)
         regularized_reward = batch["rewards"] - self.cfg.initial_policy_kl_penalty * batch["init_policy_kl"]
 
@@ -168,10 +169,18 @@ class ReinforceDebugger:
         reward_device = batch["rewards"].get_device()
         for i in range(len(unique_prompts)):
             prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
+            print(prompt_idx)
             rloo_mat = (1 - torch.eye(len(prompt_idx))).to(reward_device)
  
             rloo = torch.matmul(rloo_mat, regularized_reward[prompt_idx]) / (len(prompt_idx) - 1)
+            print(regularized_reward[prompt_idx])
+            print(rloo)
             batch["baseline"][prompt_idx] = rloo
+        print("rloo end")
+        print(batch["rewards"])
+        print(regularized_reward)
+        print(batch["baseline"])
+        print("-------------------")
         return batch
 
     def get_remax_baseline(self, inference_batch, batch):
@@ -268,7 +277,6 @@ class ReinforceDebugger:
                 else:
                     init_policy_kl = torch.tensor(0, dtype=current_batch["logprobs"].dtype, device=current_batch["logprobs"].device)
                 
-                print("kl", init_policy_logprobs.shape, current_batch["logprobs"].shape, init_policy_kl.shape, init_policy_kl.sum(-1))
                 mask = create_mask(values=current_batch["logprobs"], prompt_lengths=current_batch["prompt_lengths"], response_lengths=current_batch["response_lengths"])
                 current_batch["mask"] = mask
                 current_batch["init_policy_kl"] = (init_policy_kl * mask).sum(-1).unsqueeze(-1)
@@ -281,7 +289,7 @@ class ReinforceDebugger:
                     current_batch = self.get_remax_baseline(inference_batch_duplicated, current_batch) # Use duplicated batch so forward batch size >= mbs
                 else:
                     current_batch["baseline"] = torch.zeros_like(current_batch["rewards"])
-                print("baseline", [x.item() for x in current_batch['baseline']], [x.item() for x in current_batch['baseline']])
+                print("baseline", [x.item() for x in current_batch['baseline']], [x.item() for x in (current_batch['rewards'] - self.cfg.initial_policy_kl_penalty * current_batch["init_policy_kl"])])
 
                 rollout_batches.append(current_batch)
 
