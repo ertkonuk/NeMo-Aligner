@@ -269,13 +269,16 @@ def compute_mbs(num_rollout_samples, rollout_micro_batch_size, num_rollout_per_p
     if (not num_rollout_per_prompt % data_parallel_world_size == 0):
         raise Exception("Must have cfg.model.ppo.num_rollout_per_prompt % parallel_state.get_data_parallel_world_size() == 0")
 
-    if N < rollout_micro_batch_size:
-        mbs = rollout_micro_batch_size // N
-        generation_iter = 1
-        duplicate_prompts = N
-    else:
-        mbs = 2
-        generation_iter = int(N / rollout_micro_batch_size) * 2
-        duplicate_prompts = int(rollout_micro_batch_size / 2)
+    # if N < rollout_micro_batch_size:
+    #     mbs = rollout_micro_batch_size // N
+    #     generation_iter = 1
+    #     duplicate_prompts = N
+    # else:
+    #     mbs = 2
+    #     generation_iter = int(N / rollout_micro_batch_size) * 2
+    #     duplicate_prompts = int(rollout_micro_batch_size / 2)
+    mbs = 2
+    generation_iter = int(N / rollout_micro_batch_size) * 2
+    duplicate_prompts = int(rollout_micro_batch_size / 2)
     
     return mbs, generation_iter, duplicate_prompts, N
