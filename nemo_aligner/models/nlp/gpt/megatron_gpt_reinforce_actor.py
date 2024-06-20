@@ -78,6 +78,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
             response_tokens = batch["response_tokens"]
             mask = batch["mask"]
             rewards = batch["rewards"]
+            baseline = batch["baseline"]
 
             attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
                 data=response_tokens,
@@ -92,7 +93,8 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 "attention_mask": attention_mask,
                 "position_ids": position_ids,
                 "mask": mask,
-                "rewards":rewards
+                "rewards":rewards,
+                "baseline":baseline
             }
 
             required_keys = set()
@@ -114,39 +116,20 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
             def loss_func(parallel_logits):
                 mask = batch["mask"]
                 rewards = batch["rewards"]
-                # prev_log_probs = batch["prev_log_probs"]
+                baseline = batch["baseline"]
                 tokens = batch["tokens"]
 
                 curr_log_probs = from_parallel_logits_to_logprobs(vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True)
 
-                # scaled_entropy = torch.tensor(0.0, dtype=parallel_logits.dtype, device=parallel_logits.device)
-                # if self.entropy_bonus > 0:
-                #     scaled_entropy = calculate_distributed_entropy(parallel_logits, mask) * self.entropy_bonus
 
-                # # Calculate clipped PPO surrogate loss function.
-                # ratios = (curr_log_probs - prev_log_probs).exp()
-                # ratios_clamped = ratios.clamp(1.0 - self.ratio_eps, 1.0 + self.ratio_eps)
-
-                # loss1 = -advantages * ratios
-                # loss2 = -advantages * ratios_clamped
-                reinforce_loss = -1 * curr_log_probs * rewards
-                # actor_loss = masked_mean(torch.max(loss1, loss2), mask)
-                # loss = actor_loss - scaled_entropy
+                reinforce_loss = -1 * curr_log_probs * (rewards - baseline)
                 loss = masked_mean(reinforce_loss, mask)
-
-                # with torch.no_grad():
-                #     ppo_ratio = masked_mean(ratios.detach(), mask)
-                #     ppo_ratio_clamped = masked_mean(ratios_clamped.detach(), mask)
-                #     scaled_entropy = scaled_entropy.detach()
 
                 reduced_actor_loss = average_losses_across_data_parallel_group([loss])
                 return (
                     loss,
                     {
                         "loss": reduced_actor_loss,
-                        # "ppo_ratio": ppo_ratio,
-                        # "ppo_ratio_clamped": ppo_ratio_clamped,
-                        # "scaled_entropy": scaled_entropy,
                     },
                 )
 
