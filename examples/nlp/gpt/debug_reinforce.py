@@ -118,7 +118,7 @@ def main(cfg) -> None:
                                                              rollout_micro_batch_size=cfg.model.ppo.rollout_micro_batch_size,
                                                              num_rollout_per_prompt=cfg.model.ppo.num_rollout_per_prompt, 
                                                              data_parallel_world_size=parallel_state.get_data_parallel_world_size())
-
+    print(mbs, generation_iter, duplicate_prompts, N)
     train_dataloader = build_dataloader(
         cfg=cfg,
         dataset=train_ds,
