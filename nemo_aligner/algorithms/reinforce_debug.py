@@ -126,7 +126,7 @@ class ReinforceDebugger:
             ppo_rollout_data["response_tokens"].extend(post_process_tensor(response_tokens))
             ppo_rollout_data["rewards"].extend(post_process_tensor(rewards))
             ppo_rollout_data["baseline"].extend(post_process_tensor(baseline))
-            print([x.item() for x in baseline], [x.item() for x in rewards])
+            
 
             # compute metrics
             # NOTE: this metric is not accumulated globally so it will differ between DP ranks
@@ -281,6 +281,7 @@ class ReinforceDebugger:
                     current_batch = self.get_remax_baseline(inference_batch_duplicated, current_batch) # Use duplicated batch so forward batch size >= mbs
                 else:
                     current_batch["baseline"] = torch.zeros_like(current_batch["rewards"])
+                print("baseline", [x.item() for x in current_batch['baseline']], [x.item() for x in current_batch['baseline']])
 
                 rollout_batches.append(current_batch)
 
