@@ -116,16 +116,17 @@ class ReinforceDebugger:
             prompt_lengths = rollout_batch["prompt_lengths"]
             response_tokens = rollout_batch["response_tokens"]
             rewards = rollout_batch["rewards"] - self.cfg.initial_policy_kl_penalty * rollout_batch["init_policy_kl"]
-            logprobs = rollout_batch["logprobs"]
+            baseline = rollout_batch["baseline"]
             mask = rollout_batch["mask"]
 
             num_samples += prompt_lengths.size(0)
 
             # collect everything we need to train PPO
             ppo_rollout_data["mask"].extend(post_process_tensor(mask))
-            ppo_rollout_data["prev_logprobs"].extend(post_process_tensor(logprobs))
             ppo_rollout_data["response_tokens"].extend(post_process_tensor(response_tokens))
             ppo_rollout_data["rewards"].extend(post_process_tensor(rewards))
+            ppo_rollout_data["baseline"].extend(post_process_tensor(baseline))
+            print([x.item() for x in baseline], [x.item() for x in rewards])
 
             # compute metrics
             # NOTE: this metric is not accumulated globally so it will differ between DP ranks

@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH -N 8 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rslarge-bo16-rlfh:42-9_critic+reward -t 4:00:00 --exclusive --dependency singleton --gpus-per-node=8 --partition=batch_block1
+#SBATCH -N 8 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rloo:42-9_critic+reward -t 4:00:00 --exclusive --dependency singleton --gpus-per-node=8 --partition=batch_block1
 #SBATCH hetjob
-#SBATCH -N 2 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rslarge-bo16:42-9_actor+init_policy -t 4:00:00 --exclusive --dependency singleton --gpus-per-node=8 --partition=batch_block1
+#SBATCH -N 2 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rloo:42-9_actor+init_policy -t 4:00:00 --exclusive --dependency singleton --gpus-per-node=8 --partition=batch_block1
 
 RLHF_SHARED_DIR="/lustre/fsw/portfolios/llmservice/projects/llmservice_modelalignment_ppo"
 DATA_DIR="/lustre/fsw/portfolios/llmservice/users/abukharin/test"
 WANDB_API_KEY="d5c9af701b905bfeadb7a5c7a4c2101afcbf3cc1"
 
-NAME="alex-reinforce-hh-lr1e-6-64-test"
-COMMIT_ID=dfed017
+NAME="alex-rloo-hh-lr1e-6-bsz64-kl0.01"
+COMMIT_ID=5695cfd
 CONTAINER="${RLHF_SHARED_DIR}/containers/nemo-aligner:v2-022924-nemo-1.23.0.sqsh"
 
 echo "Starting job at $(date '+%Y-%m-%d %H:%M:%S')"
@@ -133,6 +133,7 @@ export WANDB_API_KEY=${WANDB_API_KEY} \
     exp_manager.wandb_logger_kwargs.name=\"${ACTOR_NAME}\" \
     exp_manager.wandb_logger_kwargs.project=${WANDB_PROJECT} \
     ++exp_manager.max_time_per_run=\"00:03:30:00\" \
+    trainer.ppo.initial_policy_kl_penalty=0.01 \
     trainer.ppo.max_epochs=1 \
     trainer.ppo.max_steps=313 \
     trainer.ppo.val_check_interval=4 \
