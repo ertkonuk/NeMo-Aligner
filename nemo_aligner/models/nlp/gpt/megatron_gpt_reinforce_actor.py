@@ -216,10 +216,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
         set_sync_funcs(self, forward_only=True)
 
         mbs, seq_length = response_tokens.size()
-        if mbs < forward_micro_batch_size:
-            num_microbatches =  1
-        else:
-            num_microbatches = divide(mbs, forward_micro_batch_size)
+        num_microbatches = divide(mbs, forward_micro_batch_size)
         attention_mask, _, position_ids = self.get_ltor_masks_and_position_ids(response_tokens)
 
         batch_iter = get_iterator_k_split([response_tokens, attention_mask, position_ids], num_microbatches)
