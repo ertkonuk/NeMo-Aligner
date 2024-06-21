@@ -280,7 +280,7 @@ def compute_mbs(num_rollout_samples, rollout_micro_batch_size, num_rollout_per_p
     if num_rollout_per_prompt * 2 < rollout_micro_batch_size:
         mbs = int(rollout_micro_batch_size / num_rollout_per_prompt)
         generation_iter = 1
-        duplicate_prompts = num_rollout_per_prompt / mbs
+        duplicate_prompts = int(num_rollout_per_prompt / mbs)
     else:
         mbs = 2
         generation_iter = 2
