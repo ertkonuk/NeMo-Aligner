@@ -161,7 +161,6 @@ class ReinforceDebugger:
         '''
         Function to select the RLOO baseline for each (prompt, response) pair in the batch
         '''
-        print("rloo start")
         unique_prompts = torch.unique(batch["prompt_tokens"], dim=0)
         regularized_reward = batch["rewards"] - self.cfg.initial_policy_kl_penalty * batch["init_policy_kl"]
 
@@ -169,18 +168,11 @@ class ReinforceDebugger:
         reward_device = batch["rewards"].get_device()
         for i in range(len(unique_prompts)):
             prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
-            print(prompt_idx)
             rloo_mat = (1 - torch.eye(len(prompt_idx))).to(reward_device)
  
             rloo = torch.matmul(rloo_mat, regularized_reward[prompt_idx]) / (len(prompt_idx) - 1)
-            print(regularized_reward[prompt_idx])
-            print(rloo)
             batch["baseline"][prompt_idx] = rloo
-        print("rloo end")
-        print(batch["rewards"])
-        print(regularized_reward)
-        print(batch["baseline"])
-        print("-------------------")
+
         return batch
 
     def get_remax_baseline(self, inference_batch, batch):
@@ -190,7 +182,7 @@ class ReinforceDebugger:
         self.model._sampling_params["use_greedy"] = True
         # Get reward from unique prompts using greedy decoding
         greedy_batch = self.model.infer(inference_batch) # Note that critic mbs has to be set correctly
-        greedy_rewards = 1 / inference_batch["response_lengths"].unsqueeze(-1) * 200 #self.rm_critic.infer_rm_critic(greedy_batch).result().detach()
+        greedy_rewards = 1 / greedy_batch["response_lengths"].unsqueeze(-1) * 200 #self.rm_critic.infer_rm_critic(greedy_batch).result().detach()
         init_policy_logprobs = self.model.get_init_policy_logprobs([greedy_batch])[0]
 
         if self.compute_init_policy_kl:
