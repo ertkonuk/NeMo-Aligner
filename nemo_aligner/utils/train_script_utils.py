@@ -266,7 +266,7 @@ def compute_mbs(num_rollout_samples, rollout_micro_batch_size, num_rollout_per_p
     if not (rollout_micro_batch_size % N == 0 or N % rollout_micro_batch_size == 0):
         raise Exception("Must have cfg.model.ppo.rollout_micro_batch_size % N == 0 or N % cfg.model.ppo.rollout_micro_batch_size == 0")
     
-    if (not num_rollout_per_prompt % data_parallel_world_size == 0):
+    if (not num_rollout_per_prompt % data_parallel_world_size == 0) and num_rollout_per_prompt > data_parallel_world_size:
         raise Exception("Must have cfg.model.ppo.num_rollout_per_prompt % parallel_state.get_data_parallel_world_size() == 0")
 
     # if N < rollout_micro_batch_size:
