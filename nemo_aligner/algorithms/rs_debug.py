@@ -21,19 +21,10 @@ from megatron.core.utils import divide
 from omegaconf.dictconfig import DictConfig
 from tqdm import tqdm
 
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.utils import logging
-from nemo_aligner.utils.distributed import (
-    SyncTimer,
-    pad_tensors_to_max_global_seq_len,
-    pad_batch
-)
-from nemo_aligner.utils.ppo_utils import (
-    calculate_kl_penalty,
-    create_mask,
-)
-
+from nemo_aligner.utils.distributed import SyncTimer, pad_batch, pad_tensors_to_max_global_seq_len
+from nemo_aligner.utils.ppo_utils import create_mask, select_topk
 from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
 from nemo_aligner.utils.utils import clear_memory, cpu_dict
@@ -46,8 +37,8 @@ def compute_num_rollout_microbatches(dataloader):
     )
 
 
-class GRPODebugger:
-    """Trainer to coordinate PPO training
+class RSDebugger:
+    """Trainer to coordinate RS training
     """
 
     def __init__(
@@ -63,6 +54,7 @@ class GRPODebugger:
         run_timer,
         generation_iter,
         duplicate_prompts,
+        num_select,
     ):
         self.cfg = cfg
         self.model = model
@@ -74,21 +66,21 @@ class GRPODebugger:
         self.ckpt_callback = ckpt_callback
         self.generation_iter = generation_iter
         self.duplicate_prompts = duplicate_prompts
+        self.num_select = num_select
 
         # this timer checks if we should stop training
         self.run_timer = run_timer
 
         self.consumed_samples = 0
-        # the step here is PPO step
+        # the step here is RS step
         self.step = 0
         # keep track of how many times we optimized the actor
-        self.ppo_optimization_step = 0
+        self.rs_optimization_step = 0
 
         # compute `max_steps`
         self.num_steps_per_epoch = compute_num_steps_per_epoch(self.train_dataloader.batch_sampler)
         self.set_max_steps()
 
-        self.compute_init_policy_kl = self.cfg.initial_policy_kl_penalty > 0
         # size to pad our rollout batch to
         self.rollout_batch_seq_length = self.cfg.rollout_batch_seq_length
 
@@ -100,11 +92,11 @@ class GRPODebugger:
             reduction="mean", sync_cuda=True, buffer_size=1, reduce_op=torch.distributed.ReduceOp.MAX
         )
 
-    def generate_ppo_data(self, rollout_batches):
-        """generate ppo specific data for training
+    def generate_rs_data(self, rollout_batches):
+        """generate rs specific data for training
         """
-        ppo_rollout_data = defaultdict(list)
-        ppo_rollout_metrics = defaultdict(lambda: 0)
+        rs_rollout_data = defaultdict(list)
+        rs_rollout_metrics = defaultdict(lambda: 0)
         num_samples = 0
 
         def post_process_tensor(tensor):
@@ -114,80 +106,55 @@ class GRPODebugger:
             # NOTE: all items in rollout batch or out of this computation
             # must have a leading B dimension
             prompt_lengths = rollout_batch["prompt_lengths"]
+            response_lengths = rollout_batch["response_lengths"]
             response_tokens = rollout_batch["response_tokens"]
-            rewards = rollout_batch["rewards"] - self.cfg.initial_policy_kl_penalty * rollout_batch["init_policy_kl"]
-            reward_mean = rollout_batch["reward_mean"]
-            reward_std = rollout_batch["reward_std"]
-            mask = rollout_batch["mask"]
-            logprobs = rollout_batch["logprobs"]
+
+            prompt_tokens = rollout_batch["prompt_tokens"]
 
             num_samples += prompt_lengths.size(0)
 
-            # collect everything we need to train PPO
-            ppo_rollout_data["mask"].extend(post_process_tensor(mask))
-            ppo_rollout_data["response_tokens"].extend(post_process_tensor(response_tokens))
-            ppo_rollout_data["rewards"].extend(post_process_tensor(rewards))
-            ppo_rollout_data["reward_mean"].extend(post_process_tensor(reward_mean))
-            ppo_rollout_data["reward_std"].extend(post_process_tensor(reward_std))
-            ppo_rollout_data["prev_logprobs"].extend(post_process_tensor(logprobs))
-            
-
-            # compute metrics
-            # NOTE: this metric is not accumulated globally so it will differ between DP ranks
-            ppo_rollout_metrics["init_policy_kl"] += (
-                rollout_batch["init_policy_kl"].sum().item() if self.compute_init_policy_kl else 0
+            # mask will mask out the loss on the prompt tokens
+            mask = create_mask(
+                values=torch.zeros([response_tokens.shape[0], response_tokens.shape[1] - 1]),
+                prompt_lengths=prompt_lengths,
+                response_lengths=response_lengths,
             )
 
-        # average across the samples for the non global metrics
-        ppo_rollout_metrics = {k: v / num_samples for k, v in ppo_rollout_metrics.items()}
+            # collect everything we need to train actor
+            rs_rollout_data["mask"].extend(post_process_tensor(mask))
+            rs_rollout_data["response_tokens"].extend(post_process_tensor(response_tokens))
+            rs_rollout_data["prompt_tokens"].extend(post_process_tensor(prompt_tokens))
 
-        for k in ppo_rollout_data:
+        # average across the samples for the non global metrics
+        rs_rollout_metrics = {k: v / num_samples for k, v in rs_rollout_metrics.items()}
+
+        for k in rs_rollout_data:
             rollout_batch_seq_length = self.rollout_batch_seq_length
             pad_value = self.model.tokenizer.eos_id
 
             # all other tensors in the rollout batch
             # will be B x S -1 (because we don't predict anything for the last token)
-            if k != "response_tokens":
-                pad_value = 0
-                if rollout_batch_seq_length is not None:
-                    rollout_batch_seq_length -= 1
 
-            ppo_rollout_data[k] = pad_tensors_to_max_global_seq_len(
-                ppo_rollout_data[k],
+            rs_rollout_data[k] = pad_tensors_to_max_global_seq_len(
+                rs_rollout_data[k],
                 pad_value=pad_value,
                 group=parallel_state.get_data_parallel_group(),
                 sequence_length_to_pad_to=rollout_batch_seq_length,
             )
 
-        return ppo_rollout_data, cpu_dict(ppo_rollout_metrics)
-    
-    def get_group_statistics(self, batch):
-        '''
-        Function to select the RLOO baseline for each (prompt, response) pair in the batch
-        '''
-        unique_prompts = torch.unique(batch["prompt_tokens"], dim=0)
-        regularized_reward = batch["rewards"] - self.cfg.initial_policy_kl_penalty * batch["init_policy_kl"]
+        return rs_rollout_data, cpu_dict(rs_rollout_metrics)
 
-        batch["reward_mean"] = torch.zeros_like(batch["rewards"])
-        batch["reward_std"] = torch.ones_like(batch["rewards"])
-        for i in range(len(unique_prompts)):
-            prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
-
-            batch["reward_mean"][prompt_idx] = regularized_reward[prompt_idx].mean()
-            batch["reward_std"][prompt_idx] = regularized_reward[prompt_idx].std() + 1e-6
-
-        return batch
-    
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
         """
         rollout_batches = []
         if not is_validation:
+            full_batches = [] # compute metrics over all batches, not just the selected ones
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
 
                 current_batch = None
                 inference_batch_duplicated = {
-                    'text':torch.concatenate([inference_batch['text']] * self.duplicate_prompts, dim=0),
+                    'text':torch.concatenate([inference_batch['text']] * self.duplicate_prompts, dim=0), #input text padded to prompt_llen + max_response length
                     'length':torch.concatenate([inference_batch['length']] * self.duplicate_prompts, dim=0),
                     'attention_mask':inference_batch['attention_mask'],
                     'loss_mask':torch.concatenate([inference_batch['loss_mask']] * self.duplicate_prompts, dim=0),
@@ -199,61 +166,37 @@ class GRPODebugger:
                         rollout_batch = self.model.infer(inference_batch_duplicated) # Note that critic mbs has to be set correctly
                         current_batch = rollout_batch
                         current_batch["prompt_tokens"] = inference_batch_duplicated["text"]
-                        
                     else:
                         rollout_batch = self.model.infer(inference_batch_duplicated)
-                        # Need to pad response tokens before concatenating
+                        # Need to pad response tokens before concatenating. Response tokens has prompts concatenated with responses.
                         current_batch["response_tokens"], rollout_batch["response_tokens"] = pad_batch(current_batch["response_tokens"], rollout_batch["response_tokens"], self.model.tokenizer.eos_id)
-                        current_batch["logprobs"], rollout_batch["logprobs"] = pad_batch(current_batch["logprobs"], rollout_batch["logprobs"], 0)
-
-                        # Concat tensors
+                        
                         current_batch["response_tokens"] = torch.concatenate([current_batch["response_tokens"], rollout_batch["response_tokens"]], dim=0)
-                        current_batch["logprobs"] = torch.concatenate([current_batch["logprobs"], rollout_batch["logprobs"]], dim=0)
                         current_batch["response_lengths"] = torch.concatenate([current_batch["response_lengths"], rollout_batch["response_lengths"]], dim=0)
                         current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
 
-                    # Get reward and init_policy logprobs
-                    rewards = 1 / rollout_batch["response_lengths"].unsqueeze(-1) * 200 #self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
-                    init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
-                    
-
+                    rewards = 1 / rollout_batch["response_lengths"] * 200                   
                     if "rewards" in current_batch:
                         current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
-                        current_batch["init_logprobs"], _ = pad_batch(current_batch["init_logprobs"], init_policy_logprobs, 0)
-                        current_batch["init_logprobs"] = torch.concatenate([current_batch["init_logprobs"], init_policy_logprobs], dim=0)
                     else:
                         current_batch["rewards"] = rewards
-                        current_batch["init_logprobs"] = init_policy_logprobs
+                rollout_batch = select_topk(current_batch, self.num_select)
 
-                # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
-
-                if self.compute_init_policy_kl:
-                    init_policy_kl = calculate_kl_penalty(
-                        log_probs_a=current_batch["logprobs"],
-                        log_probs_b=current_batch["init_logprobs"],
-                        use_absolute_kl=self.cfg.use_absolute_kl,
-                    )
-                else:
-                    init_policy_kl = torch.tensor(0, dtype=current_batch["logprobs"].dtype, device=current_batch["logprobs"].device)
-                
-                mask = create_mask(values=current_batch["logprobs"], prompt_lengths=current_batch["prompt_lengths"], response_lengths=current_batch["response_lengths"])
-                current_batch["mask"] = mask
-                current_batch["init_policy_kl"] = (init_policy_kl * mask).sum(-1).unsqueeze(-1)
-            
-                current_batch = self.get_group_statistics(current_batch)
-                
-                rollout_batches.append(current_batch)
+                rollout_batches.append(rollout_batch)
+                full_batches.append(current_batch)
+            return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(full_batches))
 
         else:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
-                
-                rewards = 1 / rollout_batch["response_lengths"].unsqueeze(-1) * 200 #self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
-                rollout_batch["rewards"] = rewards.unsqueeze(-1)
+
+                rewards = 1 / rollout_batch["response_lengths"] * 200            
+                rollout_batch["rewards"] = rewards
                 rollout_batches.append(rollout_batch)
-            
-        return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
+                
+            return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
+
 
     def compute_global_rollout_metrics(self, rollout_batches):
         metrics = defaultdict(lambda: 0)
@@ -304,7 +247,6 @@ class GRPODebugger:
             "global_prompt_lengths": global_prompt_lengths / global_num_samples,
             "global_rewards": global_rewards / global_num_samples,
         }
-
         return metrics
 
     @torch.no_grad()
@@ -320,42 +262,47 @@ class GRPODebugger:
 
     @torch.no_grad()
     def generate_rollouts(self, dataloader_iter, num_microbatches):
-        self.model.prepare_for_inference()
 
+        self.model.prepare_for_inference()
         rollout_batches, rollout_metrics = self._run_inference(dataloader_iter, num_microbatches, is_validation=False)
 
-        ppo_rollout_data, ppo_rollout_metrics = map(cpu_dict, self.generate_ppo_data(rollout_batches))
+        rs_rollout_data, rs_rollout_metrics = map(cpu_dict, self.generate_rs_data(rollout_batches))
 
         self.model.finish_inference()
 
         self.consumed_samples += (
-            ppo_rollout_data["response_tokens"].size(0) * parallel_state.get_data_parallel_world_size()
+            rs_rollout_data["response_tokens"].size(0) * parallel_state.get_data_parallel_world_size()
         )
-        return ppo_rollout_data, rollout_metrics | ppo_rollout_metrics | {"consumed_samples": self.consumed_samples}
+        return rs_rollout_data, rollout_metrics | rs_rollout_metrics | {"consumed_samples": self.consumed_samples}
 
     def run_training(self, dataloader_iter):
         self.model.prepare_for_training()
 
         for batch in dataloader_iter:
+            """
+            batch has [mask, advantages, prev_logprobs, response_tokens, rewards, values, returns]
+            mask: [mbs, seq_len-1]
+            response_tokens: [mbs, seq_len]
+
+            """
             self.timer.start("train_step_time")
             self.optimizer.zero_grad()
-            
-            for _ in range(self.cfg.update_steps):
-                self.model.prepare_for_training_step()
-                loss_mean, metrics = self.model.get_loss_and_metrics(batch=batch, forward_only=False)
-                self.model.finish_training_step()
 
-                grad_norm = clip_gradients(self.model, self.cfg.gradient_clip_val)
-                grad_norm = grad_norm.item() if torch.is_tensor(grad_norm) else grad_norm
-                lr = self.optimizer.param_groups[0]["lr"]
+            self.model.prepare_for_training_step()
+            loss_mean, metrics = self.model.get_loss_and_metrics(batch=batch, forward_only=False)
+            self.model.finish_training_step()
 
-                self.optimizer.step()
-                self.scheduler.step()
+            grad_norm = clip_gradients(self.model, self.cfg.gradient_clip_val)
+            grad_norm = grad_norm.item() if torch.is_tensor(grad_norm) else grad_norm
+            lr = self.optimizer.param_groups[0]["lr"]
+
+            self.optimizer.step()
+            self.scheduler.step()
 
             if grad_norm is not None:
                 metrics["grad_norm"] = grad_norm
 
-            metrics.update({"lr": lr, "loss": loss_mean, "optim_step": self.ppo_optimization_step})
+            metrics.update({"lr": lr, "loss": loss_mean, "optim_step": self.rs_optimization_step})
 
             self.timer.stop("train_step_time")
             metrics["train_step_time"] = self.timer.get("train_step_time")
@@ -364,7 +311,7 @@ class GRPODebugger:
                 metrics, step=self.step, prefix="train_optim/",
             )
 
-            self.ppo_optimization_step += 1
+            self.rs_optimization_step += 1
 
         self.model.finish_training()
 
@@ -373,16 +320,6 @@ class GRPODebugger:
         return loss_mean, metrics
 
     def fit(self):
-        if (not isinstance(self.train_dataloader.batch_sampler, MegatronPretrainingRandomSampler)) and (
-            self.cfg.max_epochs is not None and self.cfg.max_epochs > 1
-        ):
-            # if you use MegatronPretrainingBatchSampler as the batch_sampler passed to your train dataloader (in builders.py)
-            # then each epoch will repeat all your samples in the same order as the previous epoch, there is no shuffling
-            # to fix this, you should use MegatronPretrainingRandomSampler instead, which alleviates this issue and allows
-            # random shuffling for each epoch.
-            raise ValueError(
-                "max_epochs > 1 is not supported unless using `MegatronPretrainingRandomSampler` as the batch_sampler for your train dataloader"
-            )
 
         epoch_iter = range(self.epoch, self.cfg.max_epochs)
         if len(epoch_iter) <= 0:
@@ -400,7 +337,7 @@ class GRPODebugger:
 
             dataloader_iter = iter(self.train_dataloader)
 
-            global_pbar = tqdm(loop_iter, initial=self.step, total=self.max_steps, leave=True, desc="PPO Global Step")
+            global_pbar = tqdm(loop_iter, initial=self.step, total=self.max_steps, leave=True, desc="RS Global Step")
 
             num_rollout_micro_batches = compute_num_rollout_microbatches(self.train_dataloader)
             dp_size = parallel_state.get_data_parallel_world_size()
@@ -413,7 +350,8 @@ class GRPODebugger:
                 timing_metrics = {}
 
                 self.timer.start("rollout_time")
-                ppo_rollout_data, metrics = self.generate_rollouts(dataloader_iter, num_rollout_micro_batches)
+                rs_rollout_data, metrics = self.generate_rollouts(dataloader_iter, num_rollout_micro_batches)
+
                 self.timer.stop("rollout_time")
                 timing_metrics["rollout_time"] = self.timer.get("rollout_time")
 
@@ -433,14 +371,15 @@ class GRPODebugger:
                     key="table/train_rollouts", dataframe=self.train_df, step=self.step,
                 )
 
-                rollout_size = ppo_rollout_data["response_tokens"].size(0)
-                rollout_dataloader_iter = get_iterator_k_split(
-                    ppo_rollout_data, divide(rollout_size, num_to_load_on_each_dp)
+                rollout_size = rs_rollout_data["response_tokens"].size(0)
+                rollout_dataloader_iter = get_iterator_k_split(  # Does not have prompt info
+                    rs_rollout_data, divide(rollout_size, num_to_load_on_each_dp)
                 )
                 # start training
                 clear_memory()
                 self.timer.start("train_time")
                 self.run_training(rollout_dataloader_iter)
+
                 self.timer.stop("train_time")
                 timing_metrics["train_time"] = self.timer.get("train_time")
 
@@ -496,15 +435,15 @@ class GRPODebugger:
             "step": self.step,
             "consumed_samples": self.consumed_samples,
             "epoch": self.epoch,
-            "ppo_optimization_step": self.ppo_optimization_step,
+            "rs_optimization_step": self.rs_optimization_step,
         }
 
     def load_state_dict(self, state_dict):
         self.step = state_dict["step"]
         self.consumed_samples = state_dict["consumed_samples"]
-        self.ppo_optimization_step = state_dict["ppo_optimization_step"]
+        self.rs_optimization_step = state_dict["ppo_optimization_step"]  # Due to way we save checkpoint
 
-        loaded_values = [self.step, self.consumed_samples, self.ppo_optimization_step]
+        loaded_values = [self.step, self.consumed_samples, self.rs_optimization_step]
 
         # make sure everyone loaded the same checkpoint as rank 0
         to_broadcast = torch.tensor(loaded_values, dtype=torch.float32, device=torch.cuda.current_device())
@@ -526,8 +465,11 @@ class GRPODebugger:
         monitor_candidates = {k: torch.tensor(v, dtype=torch.int32) for k, v in self.state_dict().items()}
         monitor_candidates.update(extra_candidates)
 
+        # future = self.rm_critic.save()
 
         self.ckpt_callback.custom_save(monitor_candidates=monitor_candidates, is_train_end=is_train_end)
+
+        # future.result()
 
         self.model.finish_training()
 

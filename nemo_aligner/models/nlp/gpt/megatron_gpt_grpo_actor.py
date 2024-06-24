@@ -53,7 +53,7 @@ from nemo_aligner.utils.utils import (
 )
 
 
-class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGenerativeInterface):
+class MegatronGPTGRPOModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGenerativeInterface):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
         self.automatic_optimization = False

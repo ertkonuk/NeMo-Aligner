@@ -20,14 +20,13 @@ from omegaconf.omegaconf import OmegaConf
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-from nemo_aligner.algorithms.grpo import GRPOTrainer
+from nemo_aligner.algorithms.rs_debug import RSDebugger
 from nemo_aligner.data.nlp.builders import (
     build_dataloader,
     build_train_valid_test_rlhf_datasets,
     collate_with_pad_to_max_batch,
 )
-from nemo_aligner.models.nlp.gpt.megatron_gpt_grpo_actor import MegatronGPTGRPOModel
-from nemo_aligner.models.nlp.gpt.reward_critic_clients import RemoteGPTRMClient
+from nemo_aligner.models.nlp.gpt.megatron_gpt_rs_actor import MegatronGPTRSModel
 from nemo_aligner.utils.distributed import Timer
 from nemo_aligner.utils.train_script_utils import (
     CustomLoggerWrapper,
@@ -40,9 +39,9 @@ from nemo_aligner.utils.train_script_utils import (
     retrieve_custom_trainer_state_dict,
     compute_mbs
 )
-from nemo_aligner.utils.utils import load_and_override_model_config, load_from_nemo, retrieve_model_state_dict_in_cpu
+from nemo_aligner.utils.utils import load_and_override_model_config, load_from_nemo
 
-"""Script to start GRPO training"""
+"""Script to start RS training"""
 
 OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 OmegaConf.register_new_resolver("int_div", lambda x, y: x // y, replace=True)
@@ -50,21 +49,24 @@ OmegaConf.register_new_resolver("int_div", lambda x, y: x // y, replace=True)
 mp.set_start_method("spawn", force=True)
 
 
-@hydra_runner(config_path="conf", config_name="gpt_grpo_actor")
+@hydra_runner(config_path="conf", config_name="gpt_rs_actor")
 def main(cfg) -> None:
+    # Need this to fix bug. Ask Olivier later
+    cfg.model.rs.rollout_micro_batch_size = int(cfg.model.rs.rollout_micro_batch_size)
+
     cfg.model = load_and_override_model_config(cfg.pretrained_checkpoint.restore_from_path, cfg.model)
 
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
-    trainer = resolve_and_create_trainer(cfg, "ppo")
+    trainer = resolve_and_create_trainer(cfg, "rs")
 
     exp_manager(trainer, cfg.exp_manager)
 
     logger = CustomLoggerWrapper(trainer.loggers)
 
     ptl_model = load_from_nemo(
-        MegatronGPTGRPOModel,
+        MegatronGPTRSModel,
         cfg.model,
         trainer,
         strict=True,
@@ -74,13 +76,6 @@ def main(cfg) -> None:
     init_peft(ptl_model, cfg.model)
 
     init_policy_state_dict = None
-
-    # only need this if we are running with inital kl penalty & full-parameter tuning
-    if cfg.trainer.ppo.initial_policy_kl_penalty > 0 and cfg.model.peft.peft_scheme == "none":
-        init_policy_state_dict = retrieve_model_state_dict_in_cpu(
-            ptl_model, megatron_amp_O2=cfg.model.get("megatron_amp_O2", False)
-        )
-
     ptl_model.init_policy_state_dict = init_policy_state_dict
 
     # pull values from checkpoint
@@ -109,15 +104,15 @@ def main(cfg) -> None:
         tokenizer=ptl_model.tokenizer,
     )
 
-    max_seqlen = cfg.model.ppo.length_params.max_length
+    max_seqlen = cfg.model.rs.length_params.max_length
     eos_id = ptl_model.tokenizer.eos_id
 
     # collate fn to pad to the max seq length in the batch
     collate_fn = collate_with_pad_to_max_batch(max_seqlen, eos_id, cfg)
 
-    mbs, generation_iter, duplicate_prompts, N = compute_mbs(num_rollout_samples=cfg.model.ppo.num_rollout_samples, 
-                                                             rollout_micro_batch_size=cfg.model.ppo.rollout_micro_batch_size,
-                                                             num_rollout_per_prompt=cfg.model.ppo.num_rollout_per_prompt, 
+    mbs, generation_iter, duplicate_prompts, N = compute_mbs(num_rollout_samples=cfg.model.rs.num_rollout_samples, 
+                                                             rollout_micro_batch_size=cfg.model.rs.rollout_micro_batch_size,
+                                                             num_rollout_per_prompt=cfg.model.rs.num_rollout_per_prompt, 
                                                              data_parallel_world_size=parallel_state.get_data_parallel_world_size())
 
     train_dataloader = build_dataloader(
@@ -125,7 +120,7 @@ def main(cfg) -> None:
         dataset=train_ds,
         consumed_samples=consumed_samples,
         mbs=mbs,
-        gbs=cfg.model.ppo.num_rollout_samples,
+        gbs=cfg.model.rs.num_rollout_samples,
         collate_fn=collate_fn,
         load_gbs=False,
     )
@@ -134,8 +129,8 @@ def main(cfg) -> None:
         cfg=cfg,
         dataset=validation_ds,
         consumed_samples=0,
-        mbs=cfg.model.ppo.val_rollout_micro_batch_size,
-        gbs=cfg.model.ppo.num_val_samples,
+        mbs=cfg.model.rs.rollout_micro_batch_size,
+        gbs=cfg.model.rs.num_val_samples,
         collate_fn=collate_fn,
         load_gbs=False,
         use_random_sampler=False,
@@ -162,29 +157,27 @@ def main(cfg) -> None:
 
     logger.log_hyperparams(OmegaConf.to_container(cfg))
 
-    rm_critic = RemoteGPTRMClient(cfg.remote_critic_rm)
     timer = Timer(cfg.exp_manager.get("max_time_per_run"))
 
-    ppo_trainer = GRPOTrainer(
-        cfg=cfg.trainer.ppo,
+    rs_trainer = RSDebugger(
+        cfg=cfg.trainer.rs,
         model=ptl_model,
         optimizer=optimizer,
         scheduler=scheduler,
         train_dataloader=train_dataloader,
         val_dataloader=val_dataloader,
-        rm_critic=rm_critic,
         logger=logger,
         ckpt_callback=ckpt_callback,
         run_timer=timer,
         generation_iter=generation_iter,
         duplicate_prompts=duplicate_prompts,
+        num_select=cfg.model.rs.num_select,
     )
 
     if custom_trainer_state_dict is not None:
-        ppo_trainer.load_state_dict(custom_trainer_state_dict)
+        rs_trainer.load_state_dict(custom_trainer_state_dict)
 
-    ppo_trainer.fit()
-
+    rs_trainer.fit()
 
 if __name__ == "__main__":
     main()
