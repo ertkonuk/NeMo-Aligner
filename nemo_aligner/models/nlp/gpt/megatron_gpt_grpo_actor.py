@@ -79,6 +79,8 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
             mask = batch["mask"]
             rewards = batch["rewards"]
             prev_logprobs = batch["prev_logprobs"]
+            reward_mean = batch["reward_mean"]
+            reward_std = batch["reward_std"]
 
             attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
                 data=response_tokens,
@@ -94,7 +96,9 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 "position_ids": position_ids,
                 "mask": mask,
                 "rewards":rewards,
-                "prev_logprobs":prev_logprobs
+                "prev_logprobs":prev_logprobs,
+                "reward_mean":reward_mean,
+                "reward_std":reward_std
             }
 
             required_keys = set()
@@ -116,7 +120,9 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
             def loss_func(parallel_logits):
                 mask = batch["mask"]
                 rewards = batch["rewards"]
-                # prev_log_probs = batch["prev_log_probs"]
+                prev_log_probs = batch["prev_log_probs"]
+                reward_mean = batch["reward_mean"]
+                reward_std = batch["reward_std"]
                 tokens = batch["tokens"]
 
                 curr_log_probs = from_parallel_logits_to_logprobs(vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True)
@@ -125,30 +131,28 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 # if self.entropy_bonus > 0:
                 #     scaled_entropy = calculate_distributed_entropy(parallel_logits, mask) * self.entropy_bonus
 
-                # # Calculate clipped PPO surrogate loss function.
-                # ratios = (curr_log_probs - prev_log_probs).exp()
-                # ratios_clamped = ratios.clamp(1.0 - self.ratio_eps, 1.0 + self.ratio_eps)
+                # Calculate clipped PPO surrogate loss function.
+                ratios = (curr_log_probs - prev_log_probs).exp()
+                ratios_clamped = ratios.clamp(1.0 - self.ratio_eps, 1.0 + self.ratio_eps)
+                advantages = (rewards - reward_mean) / reward_std
 
-                # loss1 = -advantages * ratios
-                # loss2 = -advantages * ratios_clamped
-                reinforce_loss = -1 * curr_log_probs * rewards
-                # actor_loss = masked_mean(torch.max(loss1, loss2), mask)
-                # loss = actor_loss - scaled_entropy
-                loss = masked_mean(reinforce_loss, mask)
+                loss1 = -advantages * ratios
+                loss2 = -advantages * ratios_clamped
 
-                # with torch.no_grad():
-                #     ppo_ratio = masked_mean(ratios.detach(), mask)
-                #     ppo_ratio_clamped = masked_mean(ratios_clamped.detach(), mask)
-                #     scaled_entropy = scaled_entropy.detach()
+                actor_loss = masked_mean(torch.max(loss1, loss2), mask)
+                loss = actor_loss #- scaled_entropy
+
+                with torch.no_grad():
+                    ppo_ratio = masked_mean(ratios.detach(), mask)
+                    ppo_ratio_clamped = masked_mean(ratios_clamped.detach(), mask)
 
                 reduced_actor_loss = average_losses_across_data_parallel_group([loss])
                 return (
                     loss,
                     {
                         "loss": reduced_actor_loss,
-                        # "ppo_ratio": ppo_ratio,
-                        # "ppo_ratio_clamped": ppo_ratio_clamped,
-                        # "scaled_entropy": scaled_entropy,
+                        "ppo_ratio": ppo_ratio,
+                        "ppo_ratio_clamped": ppo_ratio_clamped
                     },
                 )
 
