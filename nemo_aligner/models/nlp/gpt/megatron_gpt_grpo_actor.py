@@ -96,7 +96,7 @@ class MegatronGPTGRPOModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGene
                 "position_ids": position_ids,
                 "mask": mask,
                 "rewards":rewards,
-                "prev_logprobs":prev_logprobs,
+                "prev_log_probs":prev_logprobs,
                 "reward_mean":reward_mean,
                 "reward_std":reward_std
             }
