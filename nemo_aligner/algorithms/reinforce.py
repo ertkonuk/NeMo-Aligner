@@ -247,9 +247,7 @@ class ReinforceTrainer:
 
                     # Get reward and init_policy logprobs
                     rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
-                    
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
-                    
 
                     if "rewards" in current_batch:
                         current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
@@ -260,7 +258,6 @@ class ReinforceTrainer:
                         current_batch["init_logprobs"] = init_policy_logprobs
 
                 # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
-
                 if self.compute_init_policy_kl:
                     init_policy_kl = calculate_kl_penalty(
                         log_probs_a=current_batch["logprobs"],
@@ -270,7 +267,6 @@ class ReinforceTrainer:
                 else:
                     init_policy_kl = torch.tensor(0, dtype=current_batch["logprobs"].dtype, device=current_batch["logprobs"].device)
                 
-                print("kl", init_policy_logprobs.shape, current_batch["logprobs"].shape, init_policy_kl.shape, init_policy_kl.sum(-1))
                 mask = create_mask(values=current_batch["logprobs"], prompt_lengths=current_batch["prompt_lengths"], response_lengths=current_batch["response_lengths"])
                 current_batch["mask"] = mask
                 current_batch["init_policy_kl"] = (init_policy_kl * mask).mean(-1).unsqueeze(-1)

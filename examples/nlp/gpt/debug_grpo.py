@@ -52,7 +52,8 @@ mp.set_start_method("spawn", force=True)
 @hydra_runner(config_path="conf", config_name="gpt_grpo_actor")
 def main(cfg) -> None:
     cfg.model = load_and_override_model_config(cfg.pretrained_checkpoint.restore_from_path, cfg.model)
-
+    cfg.model.ppo.initial_policy_kl_penalty = cfg.trainer.ppo.initial_policy_kl_penalty
+    
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
@@ -118,7 +119,7 @@ def main(cfg) -> None:
                                                              rollout_micro_batch_size=cfg.model.ppo.rollout_micro_batch_size,
                                                              num_rollout_per_prompt=cfg.model.ppo.num_rollout_per_prompt, 
                                                              data_parallel_world_size=parallel_state.get_data_parallel_world_size())
-    print(mbs, generation_iter, duplicate_prompts, N)
+    
     train_dataloader = build_dataloader(
         cfg=cfg,
         dataset=train_ds,

@@ -52,6 +52,10 @@ from nemo_aligner.utils.utils import (
     offload_distributed_adam,
 )
 
+from nemo_aligner.utils.ppo_utils import (
+    calculate_kl_penalty,
+)
+
 
 class MegatronGPTGRPOModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGenerativeInterface):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
@@ -70,6 +74,7 @@ class MegatronGPTGRPOModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGene
         self.entropy_bonus = self.cfg.ppo.entropy_bonus
         self.ratio_eps = self.cfg.ppo.ratio_eps
         self.forward_micro_batch_size = self.cfg.ppo.forward_micro_batch_size
+        self.initial_policy_kl_penalty = self.cfg.ppo.initial_policy_kl_penalty
 
     # training calls
     def get_actor_forward_output_and_loss_func(self):
@@ -127,20 +132,18 @@ class MegatronGPTGRPOModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGene
 
                 curr_log_probs = from_parallel_logits_to_logprobs(vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True)
 
-                # scaled_entropy = torch.tensor(0.0, dtype=parallel_logits.dtype, device=parallel_logits.device)
-                # if self.entropy_bonus > 0:
-                #     scaled_entropy = calculate_distributed_entropy(parallel_logits, mask) * self.entropy_bonus
-
                 # Calculate clipped PPO surrogate loss function.
                 ratios = (curr_log_probs - prev_log_probs).exp()
                 ratios_clamped = ratios.clamp(1.0 - self.ratio_eps, 1.0 + self.ratio_eps)
                 advantages = (rewards - reward_mean) / reward_std
 
+                kl_penalty = calculate_kl_penalty(curr_log_probs, prev_log_probs, use_absolute_kl=False, approximate=True)
+
                 loss1 = -advantages * ratios
                 loss2 = -advantages * ratios_clamped
 
-                actor_loss = masked_mean(torch.max(loss1, loss2), mask)
-                loss = actor_loss #- scaled_entropy
+                actor_loss = masked_mean(torch.max(loss1, loss2) - self.initial_policy_kl_penalty * kl_penalty, mask)
+                loss = actor_loss 
 
                 with torch.no_grad():
                     ppo_ratio = masked_mean(ratios.detach(), mask)

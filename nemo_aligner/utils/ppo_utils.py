@@ -66,15 +66,21 @@ def calculate_ppo_rewards(values, rewards, response_lengths, init_policy_kl, pen
     return rewards_sequence - penalty_factor * init_policy_kl
 
 
-def calculate_kl_penalty(log_probs_a, log_probs_b, use_absolute_kl=True):
+def calculate_kl_penalty(log_probs_a, log_probs_b, use_absolute_kl=True, approximate=False):
     """Calculates a per-token estimate of the KL Divergence between two log_probs.
     """
-    init_policy_kl = log_probs_a - log_probs_b
+    
     if use_absolute_kl:
-        init_policy_kl = init_policy_kl.abs()
-
+        init_policy_kl = (log_probs_a - log_probs_b).abs()
+    elif approximate:
+        """Approximate kl penalty from http://joschu.net/blog/kl-approx.html
+        KL[q,p]:(r−1)−logr, where r=p/q
+        """
+        init_policy_kl = (log_probs_b - log_probs_a).exp() - 1 - (log_probs_b - log_probs_a)
+    else:
+        init_policy_kl = log_probs_a - log_probs_b
+    
     return init_policy_kl
-
 
 def create_mask(values, prompt_lengths, response_lengths):
     """Creates a mask to only keep the values in the sequence that are between prompt_lengths and sentence_lengths.

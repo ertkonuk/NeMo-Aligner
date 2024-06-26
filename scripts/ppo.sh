@@ -1,15 +1,17 @@
 #!/bin/bash
-#SBATCH -N 8 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rslarge8-bo16-rlfh:42-9_critic+reward -t 4:00:00 --exclusive --dependency singleton --gpus-per-node=8 --partition=batch_block1
+#SBATCH -N 4 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_ppo-rlfh:38-6b_critic+reward -t 4:00:00 --exclusive --dependency singleton
 #SBATCH hetjob
-#SBATCH -N 4 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rslarge8-bo16:42-9_actor+init_policy -t 4:00:00 --exclusive --dependency singleton --gpus-per-node=8 --partition=batch_block1
+#SBATCH -N 8 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_ppo-rlfh:38-6b_actor+init_policy -t 4:00:00 --exclusive --dependency singleton
 
+# first run: instability issues (f855d790)
+# b: enabling the higher stability log softmax (7d009157)
 RLHF_SHARED_DIR="/lustre/fsw/portfolios/llmservice/projects/llmservice_modelalignment_ppo"
 DATA_DIR="/lustre/fsw/portfolios/llmservice/users/abukharin/test"
 WANDB_API_KEY="d5c9af701b905bfeadb7a5c7a4c2101afcbf3cc1"
 
-NAME="alex-ppo_test_eloi3"
-COMMIT_ID=986d93d
-CONTAINER="${RLHF_SHARED_DIR}/containers/nemo-aligner:v2-022924-nemo-1.23.0.sqsh"
+NAME="ablation_eloirm_ppo-15bcont-vg-hh-rkl1e-2-lr1e-6"
+COMMIT_ID=7d009157
+CONTAINER="${RLHF_SHARED_DIR}/containers/nvidian+nemo+aligner.sqsh"
 
 echo "Starting job at $(date '+%Y-%m-%d %H:%M:%S')"
 
@@ -20,7 +22,7 @@ NEMO_RLHF_DIR=${RESULTS_DIR}/NeMo-Aligner
 pushd ${RESULTS_DIR}
 if [ ! -d "${NEMO_RLHF_DIR}" ]; then
     #git clone git@github.com:NVIDIA/NeMo-Aligner.git
-    git clone https://github.com/NVIDIA/NeMo-Aligner.git
+    git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/NeMo-Aligner.git
 fi
 pushd ${NEMO_RLHF_DIR}
 git fetch origin
@@ -28,21 +30,20 @@ git checkout ${COMMIT_ID} || exit 1
 popd
 popd
 
-NUM_ROLLOUTS=128
+NUM_ROLLOUTS=256
 NORMALIZE="True"
-ACTOR_LR="1e-7"
-ACTOR_GBS=128
-CRITIC_GBS=128
+ACTOR_LR="1e-6"
+ACTOR_GBS=256
+CRITIC_GBS=64
 
 NORMALIZE_REWARD=True
-REWARD_MEAN=0.5
-REWARD_STD=1
+REWARD_MEAN=0.27 #-1.705, 
+REWARD_STD=1 #1.736
 
 # PARAMETERS
 DATASET="anthropic_hh"
-#RM_NEMO_FILE="${DATA_DIR}/exp/rlhf/38-19_rm-15bct2-mx-hh-lr3e-6/checkpoints/megatron_gpt.nemo"
-RM_NEMO_FILE="/lustre/fsw/portfolios/llmservice/users/ealonso/exp/reward_model/01_02_resume_15b_helpsteer_1ep/checkpoints/megatron_gpt.nemo"
-ACTOR_NEMO_FILE="/lustre/fsw/portfolios/llmservice/users/jiaqiz/results/15b_8T_ct3_vegan-skunk_lr3e-6/step2400.nemo"
+RM_NEMO_FILE="${DATA_DIR}/exp/rlhf/38-1_rm-15bcont-vg-hh-lr3e-6/checkpoints/megatron_gpt.nemo"
+ACTOR_NEMO_FILE="${RLHF_SHARED_DIR}/checkpoints/sft/15b_8T_cont_vanilla_guillemot/megatron_gpt.nemo"
 DATASET_DIR="${RLHF_SHARED_DIR}/data/extra_id_prefix_end_with_backslash_n_extra_id_1_jsonl"
 TRAIN_DATA_PATH="${DATASET_DIR}/${DATASET}_train_prompts.jsonl"
 VALID_DATA_PATH="${DATASET_DIR}/${DATASET}_val_prompts_shuffled_512.jsonl"
@@ -50,7 +51,7 @@ VALID_DATA_PATH="${DATASET_DIR}/${DATASET}_val_prompts_shuffled_512.jsonl"
 MOUNTS="--container-mounts=${RLHF_SHARED_DIR}:${RLHF_SHARED_DIR},${RESULTS_DIR}:${RESULTS_DIR},${RM_NEMO_FILE}:${RM_NEMO_FILE},${ACTOR_NEMO_FILE}:${ACTOR_NEMO_FILE},${DATA_DIR}:${DATA_DIR},${DATA_DIR}/c/pytriton:/pytriton_cache,/lustre:/lustre"
 
 # W&B Logging
-WANDB_PROJECT="nemo-aligner-alex-stable"
+WANDB_PROJECT="reinforce-ablation"
 
 # START HETEROGENEUS JOB 0 =======================================================
 CRITIC_CONFIG_PATH="${NEMO_RLHF_DIR}/examples/nlp/gpt/conf"
@@ -64,9 +65,8 @@ mkdir -p $CRITIC_LOG_DIR
 
 CRITIC_NAME="${NAME}_critic"
 
-
 read -r -d '' cmd_critic_inference <<EOF
-export WANDB_API_KEY=${WANDB_API_KEY} \
+wandb login ${WANDB_API_KEY} \
 && cd ${NEMO_RLHF_DIR} \
 && export PYTHONPATH="${NEMO_RLHF_DIR}:${PYTHONPATH}" \
 && export HYDRA_FULL_ERROR=1 \
@@ -125,7 +125,7 @@ host_critic="$(scontrol show hostnames=$SLURM_JOB_NODELIST_HET_GROUP_0 | head -n
 
 
 read -r -d '' cmd_ppo <<EOF
-export WANDB_API_KEY=${WANDB_API_KEY} \
+wandb login ${WANDB_API_KEY} \
 && cd ${NEMO_RLHF_DIR} \
 && export PYTHONPATH="${NEMO_RLHF_DIR}:${PYTHONPATH}" \
 && export HYDRA_FULL_ERROR=1 \

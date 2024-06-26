@@ -234,7 +234,8 @@ class GRPOTrainer:
                     init_policy_kl = calculate_kl_penalty(
                         log_probs_a=current_batch["logprobs"],
                         log_probs_b=current_batch["init_logprobs"],
-                        use_absolute_kl=self.cfg.use_absolute_kl,
+                        use_absolute_kl=False,
+                        approximate=True
                     )
                 else:
                     init_policy_kl = torch.tensor(0, dtype=current_batch["logprobs"].dtype, device=current_batch["logprobs"].device)

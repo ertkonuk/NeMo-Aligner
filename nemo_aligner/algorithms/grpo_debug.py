@@ -166,15 +166,14 @@ class GRPODebugger:
         Function to select the RLOO baseline for each (prompt, response) pair in the batch
         '''
         unique_prompts = torch.unique(batch["prompt_tokens"], dim=0)
-        regularized_reward = batch["rewards"] - self.cfg.initial_policy_kl_penalty * batch["init_policy_kl"]
-
+        
         batch["reward_mean"] = torch.zeros_like(batch["rewards"])
         batch["reward_std"] = torch.ones_like(batch["rewards"])
         for i in range(len(unique_prompts)):
             prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
 
-            batch["reward_mean"][prompt_idx] = regularized_reward[prompt_idx].mean()
-            batch["reward_std"][prompt_idx] = regularized_reward[prompt_idx].std() + 1e-6
+            batch["reward_mean"][prompt_idx] = batch["rewards"][prompt_idx].mean()
+            batch["reward_std"][prompt_idx] = batch["rewards"][prompt_idx].std() + 1e-6
 
         return batch
     
@@ -232,7 +231,8 @@ class GRPODebugger:
                     init_policy_kl = calculate_kl_penalty(
                         log_probs_a=current_batch["logprobs"],
                         log_probs_b=current_batch["init_logprobs"],
-                        use_absolute_kl=self.cfg.use_absolute_kl,
+                        use_absolute_kl=False,
+                        approximate=True
                     )
                 else:
                     init_policy_kl = torch.tensor(0, dtype=current_batch["logprobs"].dtype, device=current_batch["logprobs"].device)

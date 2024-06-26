@@ -7,8 +7,8 @@ RLHF_SHARED_DIR="/lustre/fsw/portfolios/llmservice/projects/llmservice_modelalig
 DATA_DIR="/lustre/fsw/portfolios/llmservice/users/abukharin/test"
 WANDB_API_KEY="d5c9af701b905bfeadb7a5c7a4c2101afcbf3cc1"
 
-NAME="alex-rloo-hh-lr1e-6-bsz64-kl0.01"
-COMMIT_ID=5695cfd
+NAME="ablation-eloirm-rloo-hh-lr1e-6-bsz64-kl0.01"
+COMMIT_ID=770873d
 CONTAINER="${RLHF_SHARED_DIR}/containers/nemo-aligner:v2-022924-nemo-1.23.0.sqsh"
 
 echo "Starting job at $(date '+%Y-%m-%d %H:%M:%S')"
@@ -35,7 +35,7 @@ ACTOR_GBS=64
 CRITIC_GBS=64
 
 NORMALIZE_REWARD=True
-REWARD_MEAN=0
+REWARD_MEAN=0.27
 REWARD_STD=1
 
 # PARAMETERS
@@ -50,7 +50,7 @@ VALID_DATA_PATH="${DATASET_DIR}/${DATASET}_val_prompts_shuffled_512.jsonl"
 MOUNTS="--container-mounts=${RLHF_SHARED_DIR}:${RLHF_SHARED_DIR},${RESULTS_DIR}:${RESULTS_DIR},${RM_NEMO_FILE}:${RM_NEMO_FILE},${ACTOR_NEMO_FILE}:${ACTOR_NEMO_FILE},${DATA_DIR}:${DATA_DIR},${DATA_DIR}/c/pytriton:/pytriton_cache,/lustre:/lustre"
 
 # W&B Logging
-WANDB_PROJECT="nemo-aligner-alex-stable"
+WANDB_PROJECT="reinforce-ablation"
 
 # START HETEROGENEUS JOB 0 =======================================================
 CRITIC_CONFIG_PATH="${NEMO_RLHF_DIR}/examples/nlp/gpt/conf"
