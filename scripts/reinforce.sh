@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -N 8 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rloo:42-9_critic+reward -t 4:00:00 --exclusive --dependency singleton --gpus-per-node=8 --partition=batch_block1
+#SBATCH -N 8 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rloo:42-9_critic+reward -t 4:00:00 --dependency singleton --exclusive --partition=batch_block1,batch_block3,batch_block4 --gpus-per-node=8
 #SBATCH hetjob
-#SBATCH -N 2 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rloo:42-9_actor+init_policy -t 4:00:00 --exclusive --dependency singleton --gpus-per-node=8 --partition=batch_block1
+#SBATCH -N 2 --ntasks-per-node 8 -A llmservice_modelalignment_ppo --job-name llmservice_modelalignment_rloo:42-9_actor+init_policy -t 4:00:00 --dependency singleton --exclusive --partition=batch_block1,batch_block3,batch_block4 --gpus-per-node=8
 
 RLHF_SHARED_DIR="/lustre/fsw/portfolios/llmservice/projects/llmservice_modelalignment_ppo"
 DATA_DIR="/lustre/fsw/portfolios/llmservice/users/abukharin/test"

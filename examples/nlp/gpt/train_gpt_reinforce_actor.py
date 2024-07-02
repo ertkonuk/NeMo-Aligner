@@ -42,7 +42,7 @@ from nemo_aligner.utils.train_script_utils import (
 )
 from nemo_aligner.utils.utils import load_and_override_model_config, load_from_nemo, retrieve_model_state_dict_in_cpu
 
-"""Script to start PPO training"""
+"""Script to start reinforce training"""
 
 OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 OmegaConf.register_new_resolver("int_div", lambda x, y: x // y, replace=True)
@@ -57,7 +57,7 @@ def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
-    trainer = resolve_and_create_trainer(cfg, "ppo")
+    trainer = resolve_and_create_trainer(cfg, "reinforce")
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -76,7 +76,7 @@ def main(cfg) -> None:
     init_policy_state_dict = None
 
     # only need this if we are running with inital kl penalty & full-parameter tuning
-    if cfg.trainer.ppo.initial_policy_kl_penalty > 0 and cfg.model.peft.peft_scheme == "none":
+    if cfg.trainer.reinforce.initial_policy_kl_penalty > 0 and cfg.model.peft.peft_scheme == "none":
         init_policy_state_dict = retrieve_model_state_dict_in_cpu(
             ptl_model, megatron_amp_O2=cfg.model.get("megatron_amp_O2", False)
         )
@@ -109,15 +109,15 @@ def main(cfg) -> None:
         tokenizer=ptl_model.tokenizer,
     )
 
-    max_seqlen = cfg.model.ppo.length_params.max_length
+    max_seqlen = cfg.model.reinforce.length_params.max_length
     eos_id = ptl_model.tokenizer.eos_id
 
     # collate fn to pad to the max seq length in the batch
     collate_fn = collate_with_pad_to_max_batch(max_seqlen, eos_id, cfg)
 
-    mbs, generation_iter, duplicate_prompts, N = compute_mbs(num_rollout_samples=cfg.model.ppo.num_rollout_samples, 
-                                                             rollout_micro_batch_size=cfg.model.ppo.rollout_micro_batch_size,
-                                                             num_rollout_per_prompt=cfg.model.ppo.num_rollout_per_prompt, 
+    mbs, generation_iter, duplicate_prompts, N = compute_mbs(num_rollout_samples=cfg.model.reinforce.num_rollout_samples, 
+                                                             rollout_micro_batch_size=cfg.model.reinforce.rollout_micro_batch_size,
+                                                             num_rollout_per_prompt=cfg.model.reinforce.num_rollout_per_prompt, 
                                                              data_parallel_world_size=parallel_state.get_data_parallel_world_size())
 
     train_dataloader = build_dataloader(
@@ -125,7 +125,7 @@ def main(cfg) -> None:
         dataset=train_ds,
         consumed_samples=consumed_samples,
         mbs=mbs,
-        gbs=cfg.model.ppo.num_rollout_samples,
+        gbs=cfg.model.reinforce.num_rollout_samples,
         collate_fn=collate_fn,
         load_gbs=False,
     )
@@ -134,8 +134,8 @@ def main(cfg) -> None:
         cfg=cfg,
         dataset=validation_ds,
         consumed_samples=0,
-        mbs=cfg.model.ppo.val_rollout_micro_batch_size,
-        gbs=cfg.model.ppo.num_val_samples,
+        mbs=cfg.model.reinforce.val_rollout_micro_batch_size,
+        gbs=cfg.model.reinforce.num_val_samples,
         collate_fn=collate_fn,
         load_gbs=False,
         use_random_sampler=False,
@@ -165,8 +165,8 @@ def main(cfg) -> None:
     rm_critic = RemoteGPTRMClient(cfg.remote_critic_rm)
     timer = Timer(cfg.exp_manager.get("max_time_per_run"))
 
-    ppo_trainer = ReinforceTrainer(
-        cfg=cfg.trainer.ppo,
+    reinforce_trainer = ReinforceTrainer(
+        cfg=cfg.trainer.reinforce,
         model=ptl_model,
         optimizer=optimizer,
         scheduler=scheduler,
@@ -181,9 +181,9 @@ def main(cfg) -> None:
     )
 
     if custom_trainer_state_dict is not None:
-        ppo_trainer.load_state_dict(custom_trainer_state_dict)
+        reinforce_trainer.load_state_dict(custom_trainer_state_dict)
 
-    ppo_trainer.fit()
+    reinforce_trainer.fit()
 
 
 if __name__ == "__main__":

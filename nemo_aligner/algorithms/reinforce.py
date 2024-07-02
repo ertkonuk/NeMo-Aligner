@@ -47,7 +47,7 @@ def compute_num_rollout_microbatches(dataloader):
 
 
 class ReinforceTrainer:
-    """Trainer to coordinate PPO training
+    """Trainer to coordinate reinforce training
     """
 
     def __init__(
@@ -81,10 +81,10 @@ class ReinforceTrainer:
         self.run_timer = run_timer
 
         self.consumed_samples = 0
-        # the step here is PPO step
+        # the step here is reinforce step
         self.step = 0
         # keep track of how many times we optimized the actor
-        self.ppo_optimization_step = 0
+        self.reinforce_optimization_step = 0
 
         # compute `max_steps`
         self.num_steps_per_epoch = compute_num_steps_per_epoch(self.train_dataloader.batch_sampler)
@@ -102,11 +102,11 @@ class ReinforceTrainer:
             reduction="mean", sync_cuda=True, buffer_size=1, reduce_op=torch.distributed.ReduceOp.MAX
         )
 
-    def generate_ppo_data(self, rollout_batches):
-        """generate ppo specific data for training
+    def generate_reinforce_data(self, rollout_batches):
+        """generate reinforce specific data for training
         """
-        ppo_rollout_data = defaultdict(list)
-        ppo_rollout_metrics = defaultdict(lambda: 0)
+        reinforce_rollout_data = defaultdict(list)
+        reinforce_rollout_metrics = defaultdict(lambda: 0)
         num_samples = 0
 
         def post_process_tensor(tensor):
@@ -123,22 +123,22 @@ class ReinforceTrainer:
 
             num_samples += prompt_lengths.size(0)
 
-            # collect everything we need to train PPO
-            ppo_rollout_data["mask"].extend(post_process_tensor(mask))
-            ppo_rollout_data["response_tokens"].extend(post_process_tensor(response_tokens))
-            ppo_rollout_data["rewards"].extend(post_process_tensor(rewards))
-            ppo_rollout_data["baseline"].extend(post_process_tensor(baseline))
+            # collect everything we need to train reinforce
+            reinforce_rollout_data["mask"].extend(post_process_tensor(mask))
+            reinforce_rollout_data["response_tokens"].extend(post_process_tensor(response_tokens))
+            reinforce_rollout_data["rewards"].extend(post_process_tensor(rewards))
+            reinforce_rollout_data["baseline"].extend(post_process_tensor(baseline))
 
             # compute metrics
             # NOTE: this metric is not accumulated globally so it will differ between DP ranks
-            ppo_rollout_metrics["init_policy_kl"] += (
+            reinforce_rollout_metrics["init_policy_kl"] += (
                 rollout_batch["init_policy_kl"].sum().item() if self.compute_init_policy_kl else 0
             )
 
         # average across the samples for the non global metrics
-        ppo_rollout_metrics = {k: v / num_samples for k, v in ppo_rollout_metrics.items()}
+        reinforce_rollout_metrics = {k: v / num_samples for k, v in reinforce_rollout_metrics.items()}
 
-        for k in ppo_rollout_data:
+        for k in reinforce_rollout_data:
             rollout_batch_seq_length = self.rollout_batch_seq_length
             pad_value = self.model.tokenizer.eos_id
 
@@ -149,14 +149,14 @@ class ReinforceTrainer:
                 if rollout_batch_seq_length is not None:
                     rollout_batch_seq_length -= 1
 
-            ppo_rollout_data[k] = pad_tensors_to_max_global_seq_len(
-                ppo_rollout_data[k],
+            reinforce_rollout_data[k] = pad_tensors_to_max_global_seq_len(
+                reinforce_rollout_data[k],
                 pad_value=pad_value,
                 group=parallel_state.get_data_parallel_group(),
                 sequence_length_to_pad_to=rollout_batch_seq_length,
             )
 
-        return ppo_rollout_data, cpu_dict(ppo_rollout_metrics)
+        return reinforce_rollout_data, cpu_dict(reinforce_rollout_metrics)
     
     def get_rloo_baseline(self, batch):
         '''
@@ -225,6 +225,7 @@ class ReinforceTrainer:
                     'loss_mask':torch.concatenate([inference_batch['loss_mask']] * self.duplicate_prompts, dim=0),
                     'position_ids':torch.concatenate([inference_batch['position_ids']] * self.duplicate_prompts, dim=0),
                 }
+                
                 for _ in range(self.generation_iter):
                     
                     if current_batch is None:
@@ -276,7 +277,7 @@ class ReinforceTrainer:
                     current_batch = self.get_rloo_baseline(current_batch)
                 elif self.cfg.baseline == "ReMax":
                     # baseline from https://arxiv.org/pdf/2310.10505
-                    current_batch = self.get_remax_baseline(inference_batch, current_batch) # Use duplicated batch so forward batch size >= mbs
+                    current_batch = self.get_remax_baseline(inference_batch_duplicated, current_batch) # Use duplicated batch so forward batch size >= mbs
                 else:
                     current_batch["baseline"] = torch.zeros_like(current_batch["rewards"])
 
@@ -361,14 +362,14 @@ class ReinforceTrainer:
 
         rollout_batches, rollout_metrics = self._run_inference(dataloader_iter, num_microbatches, is_validation=False)
 
-        ppo_rollout_data, ppo_rollout_metrics = map(cpu_dict, self.generate_ppo_data(rollout_batches))
+        reinforce_rollout_data, reinforce_rollout_metrics = map(cpu_dict, self.generate_reinforce_data(rollout_batches))
 
         self.model.finish_inference()
 
         self.consumed_samples += (
-            ppo_rollout_data["response_tokens"].size(0) * parallel_state.get_data_parallel_world_size()
+            reinforce_rollout_data["response_tokens"].size(0) * parallel_state.get_data_parallel_world_size()
         )
-        return ppo_rollout_data, rollout_metrics | ppo_rollout_metrics | {"consumed_samples": self.consumed_samples}
+        return reinforce_rollout_data, rollout_metrics | reinforce_rollout_metrics | {"consumed_samples": self.consumed_samples}
 
     def run_training(self, dataloader_iter):
         self.model.prepare_for_training()
@@ -391,7 +392,7 @@ class ReinforceTrainer:
             if grad_norm is not None:
                 metrics["grad_norm"] = grad_norm
 
-            metrics.update({"lr": lr, "loss": loss_mean, "optim_step": self.ppo_optimization_step})
+            metrics.update({"lr": lr, "loss": loss_mean, "optim_step": self.reinforce_optimization_step})
 
             self.timer.stop("train_step_time")
             metrics["train_step_time"] = self.timer.get("train_step_time")
@@ -400,7 +401,7 @@ class ReinforceTrainer:
                 metrics, step=self.step, prefix="train_optim/",
             )
 
-            self.ppo_optimization_step += 1
+            self.reinforce_optimization_step += 1
 
         self.model.finish_training()
 
@@ -436,7 +437,7 @@ class ReinforceTrainer:
 
             dataloader_iter = iter(self.train_dataloader)
 
-            global_pbar = tqdm(loop_iter, initial=self.step, total=self.max_steps, leave=True, desc="PPO Global Step")
+            global_pbar = tqdm(loop_iter, initial=self.step, total=self.max_steps, leave=True, desc="Reinforce Global Step")
 
             num_rollout_micro_batches = compute_num_rollout_microbatches(self.train_dataloader)
             dp_size = parallel_state.get_data_parallel_world_size()
@@ -449,7 +450,7 @@ class ReinforceTrainer:
                 timing_metrics = {}
 
                 self.timer.start("rollout_time")
-                ppo_rollout_data, metrics = self.generate_rollouts(dataloader_iter, num_rollout_micro_batches)
+                reinforce_rollout_data, metrics = self.generate_rollouts(dataloader_iter, num_rollout_micro_batches)
                 self.timer.stop("rollout_time")
                 timing_metrics["rollout_time"] = self.timer.get("rollout_time")
 
@@ -469,9 +470,9 @@ class ReinforceTrainer:
                     key="table/train_rollouts", dataframe=self.train_df, step=self.step,
                 )
 
-                rollout_size = ppo_rollout_data["response_tokens"].size(0)
+                rollout_size = reinforce_rollout_data["response_tokens"].size(0)
                 rollout_dataloader_iter = get_iterator_k_split(
-                    ppo_rollout_data, divide(rollout_size, num_to_load_on_each_dp)
+                    reinforce_rollout_data, divide(rollout_size, num_to_load_on_each_dp)
                 )
                 # start training
                 clear_memory()
@@ -532,15 +533,15 @@ class ReinforceTrainer:
             "step": self.step,
             "consumed_samples": self.consumed_samples,
             "epoch": self.epoch,
-            "ppo_optimization_step": self.ppo_optimization_step,
+            "ppo_optimization_step": self.reinforce_optimization_step,
         }
 
     def load_state_dict(self, state_dict):
         self.step = state_dict["step"]
         self.consumed_samples = state_dict["consumed_samples"]
-        self.ppo_optimization_step = state_dict["ppo_optimization_step"]
+        self.reinforce_optimization_step = state_dict["ppo_optimization_step"]
 
-        loaded_values = [self.step, self.consumed_samples, self.ppo_optimization_step]
+        loaded_values = [self.step, self.consumed_samples, self.reinforce_optimization_step]
 
         # make sure everyone loaded the same checkpoint as rank 0
         to_broadcast = torch.tensor(loaded_values, dtype=torch.float32, device=torch.cuda.current_device())

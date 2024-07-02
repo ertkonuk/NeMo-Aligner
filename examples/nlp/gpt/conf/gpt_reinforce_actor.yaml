@@ -8,14 +8,14 @@ trainer:
   accelerator: gpu
   precision: bf16
 
-  ppo:
+  reinforce:
     max_epochs: 1
-    max_steps: -1  # max PPO steps (-1 to go through the whole train set)
+    max_steps: -1  # max reinforce steps (-1 to go through the whole train set)
     val_check_interval: 10
     save_interval: ${.val_check_interval}
     gradient_clip_val: 1.0
 
-    # PPO args to generate the data for training
+    # reinforce args to generate the data for training
     initial_policy_kl_penalty: 0.01
     use_absolute_kl: True
     baseline: 'none'
@@ -36,8 +36,8 @@ trainer:
   enable_checkpointing: False
   use_distributed_sampler: False
   max_time: null
-  max_epochs: ${.ppo.max_epochs}
-  max_steps: ${.ppo.max_steps}
+  max_epochs: ${.reinforce.max_epochs}
+  max_steps: ${.reinforce.max_steps}
 
 remote_critic_rm:
   # what to batch the inputs to
@@ -66,11 +66,11 @@ remote_critic_rm:
 exp_manager:
   explicit_log_dir: /results
   exp_dir: null
-  name: megatron_gpt_ppo_actor
+  name: megatron_gpt_reinforce_actor
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: nemo_aligner_ppo
-    name: gpt3_ppo_2b
+    project: nemo_aligner_reinforce
+    name: gpt3_reinforce_2b
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
@@ -81,7 +81,7 @@ exp_manager:
     mode: max
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: True # not recommended when training large models on clusters with short time limits
-    filename: 'megatron_gpt-{step}-{consumed_samples}-{ppo_optimization_step}-{epoch}-{val_global_rewards:.3f}'
+    filename: 'megatron_gpt-{step}-{consumed_samples}-{reinforce_optimization_step}-{epoch}-{val_global_rewards:.3f}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 pretrained_checkpoint:
@@ -89,7 +89,7 @@ pretrained_checkpoint:
 
 model:
 
-  ppo:
+  reinforce:
     # training generation mbs
     rollout_micro_batch_size: 8
     num_rollout_samples: 512
@@ -108,7 +108,7 @@ model:
     # to offload during generation or not
     offload_adam_states: True
 
-    # PPO loss params
+    # reinforce loss params
     entropy_bonus: 0.0
     ratio_eps: 0.2
 
@@ -151,7 +151,7 @@ model:
       position_embedding_strategy: null # used only when weight_tying is True
 
   mcore_gpt: True
-  # these control the mbs/gbs during PPO training
+  # these control the mbs/gbs during reinforce training
   micro_batch_size: 1
   global_batch_size: 64
   megatron_amp_O2: True

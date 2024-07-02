@@ -62,14 +62,14 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
         self.distributed_adam_offload_manager = None
 
         # length parameters for generation
-        self._length_params = OmegaConf.to_container(self.cfg.ppo.length_params, resolve=True)
+        self._length_params = OmegaConf.to_container(self.cfg.reinforce.length_params, resolve=True)
         # sampling parameters for generation
-        self._sampling_params = OmegaConf.to_container(self.cfg.ppo.sampling_params, resolve=True)
+        self._sampling_params = OmegaConf.to_container(self.cfg.reinforce.sampling_params, resolve=True)
 
-        self.to_offload_adam_states = self.cfg.ppo.offload_adam_states
-        self.entropy_bonus = self.cfg.ppo.entropy_bonus
-        self.ratio_eps = self.cfg.ppo.ratio_eps
-        self.forward_micro_batch_size = self.cfg.ppo.forward_micro_batch_size
+        self.to_offload_adam_states = self.cfg.reinforce.offload_adam_states
+        self.entropy_bonus = self.cfg.reinforce.entropy_bonus
+        self.ratio_eps = self.cfg.reinforce.ratio_eps
+        self.forward_micro_batch_size = self.cfg.reinforce.forward_micro_batch_size
 
     # training calls
     def get_actor_forward_output_and_loss_func(self):

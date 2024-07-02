@@ -42,8 +42,8 @@ REWARD_STD=1 #1.736
 
 # PARAMETERS
 DATASET="anthropic_hh"
-RM_NEMO_FILE="${DATA_DIR}/exp/rlhf/38-1_rm-15bcont-vg-hh-lr3e-6/checkpoints/megatron_gpt.nemo"
-ACTOR_NEMO_FILE="${RLHF_SHARED_DIR}/checkpoints/sft/15b_8T_cont_vanilla_guillemot/megatron_gpt.nemo"
+RM_NEMO_FILE="/lustre/fsw/portfolios/llmservice/users/ealonso/exp/reward_model/01_02_resume_15b_helpsteer_1ep/checkpoints/megatron_gpt.nemo"
+ACTOR_NEMO_FILE="/lustre/fsw/portfolios/llmservice/users/jiaqiz/results/15b_8T_ct3_vegan-skunk_lr3e-6/step2400.nemo"
 DATASET_DIR="${RLHF_SHARED_DIR}/data/extra_id_prefix_end_with_backslash_n_extra_id_1_jsonl"
 TRAIN_DATA_PATH="${DATASET_DIR}/${DATASET}_train_prompts.jsonl"
 VALID_DATA_PATH="${DATASET_DIR}/${DATASET}_val_prompts_shuffled_512.jsonl"

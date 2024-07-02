@@ -195,6 +195,8 @@ class GRPOTrainer:
                     'loss_mask':torch.concatenate([inference_batch['loss_mask']] * self.duplicate_prompts, dim=0),
                     'position_ids':torch.concatenate([inference_batch['position_ids']] * self.duplicate_prompts, dim=0),
                 }
+                print(inference_batch_duplicated["text"].shape, inference_batch_duplicated["attention_mask"].shape, inference_batch['length'])
+                
                 for _ in range(self.generation_iter):
                     
                     if current_batch is None:
