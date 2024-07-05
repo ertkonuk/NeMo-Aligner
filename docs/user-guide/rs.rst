@@ -180,7 +180,7 @@ You can use slurm to launch the 2 jobs and get them to coordinate together in a 
 
    host_critic="$(scontrol show hostnames=$SLURM_JOB_NODELIST_HET_GROUP_0 | head -n1)"
 
-   read -r -d '' cmd_ppo <<EOF
+   read -r -d '' cmd_rs <<EOF
    cd ${GPFS} \
    && export PYTHONPATH="${NEMO_RLHF_DIR}:${PYTHONPATH}" \
    && export HYDRA_FULL_ERROR=1 \
@@ -215,7 +215,7 @@ You can use slurm to launch the 2 jobs and get them to coordinate together in a 
       model.rs.num_select=1
    EOF
 
-   srun --het-group=1 -o $PPO_OUTFILE -e $PPO_ERRFILE --container-image=${CONTAINER} $MOUNTS bash -c "${cmd_ppo}" &
+   srun --het-group=1 -o $PPO_OUTFILE -e $PPO_ERRFILE --container-image=${CONTAINER} $MOUNTS bash -c "${cmd_rs}" &
 
    wait
 
