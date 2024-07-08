@@ -79,6 +79,9 @@ class SupervisedTrainer:
         # any metrics that require running full token-by-token inference during validation
         self.inference_metrics_handler = InferenceMetricsHandler(cfg.get("inference_metrics"))
 
+        if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+            self.labels = torch.ones(len(self.train_dataloader.dataset), device=torch.cuda.current_device())
+
     def validation_step(self, batch):
         self.model.prepare_for_validation_step()
 
@@ -154,7 +157,15 @@ class SupervisedTrainer:
     @torch.no_grad()
     def run_generation(self, batch):
         return self.model.infer({"text": batch["contexts"], "length": batch["context_lengths"]})
+    
+    @torch.no_grad()
+    def iterative_data_smoothing_update(self, batch):
+        out_chosen, out_rejected = self.model.get_batch_reward(batch)
+        chosen_prob = torch.exp(out_chosen) / (torch.exp(out_chosen) + torch.exp(out_rejected))
+        self.labels[batch["idx"]] = (1 - self.cfg.beta) * self.labels[batch["idx"]] + self.cfg.beta * chosen_prob.squeeze(1)
 
+
+    
     def fit(self):
         if (not isinstance(self.train_dataloader.batch_sampler, MegatronPretrainingRandomBatchSampler)) and (
             self.cfg.max_epochs is not None and self.cfg.max_epochs > 1
@@ -188,6 +199,8 @@ class SupervisedTrainer:
             )
 
             for _, batch in zip(loop_iter, global_pbar):
+                if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+                    batch["labels"] = self.labels[batch["idx"]]
 
                 self.timer.start("train_step_time")
                 loss, metrics = self.train_single_step(batch)
@@ -203,6 +216,10 @@ class SupervisedTrainer:
                     metrics, step=self.step, prefix="train/",
                 )
                 metrics = {f"train_{k}": v for k, v in metrics.items()}
+
+                if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+                    self.iterative_data_smoothing_update(batch)
+                    
 
                 self.step += 1
 
@@ -258,17 +275,30 @@ class SupervisedTrainer:
             self.max_steps = min(self.max_steps, max_steps)
 
     def state_dict(self):
-        return {
-            "step": self.step,
-            "consumed_samples": self.consumed_samples,
-            "epoch": self.epoch,
-        }
+        if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+            return {
+                "step": self.step,
+                "consumed_samples": self.consumed_samples,
+                "epoch": self.epoch,
+                "labels": self.labels,
+            }
+        else:
+            return {
+                "step": self.step,
+                "consumed_samples": self.consumed_samples,
+                "epoch": self.epoch,
+            }
 
     def load_state_dict(self, state_dict):
         self.step = state_dict["step"]
         self.consumed_samples = state_dict["consumed_samples"]
+        
 
         loaded_values = [self.step, self.consumed_samples]
+
+        if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+            self.labels = state_dict["labels"]
+            loaded_values.append(self.labels)
 
         # make sure everyone loaded the same checkpoint as rank 0
         to_broadcast = torch.tensor(loaded_values, dtype=torch.float32, device=torch.cuda.current_device())

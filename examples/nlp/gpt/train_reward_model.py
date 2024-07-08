@@ -73,6 +73,7 @@ def main(cfg) -> None:
         load_base_model_only=True,
         restore_path=cfg.pretrained_checkpoint.restore_from_path,
     )
+    ptl_model.iterative_data_smoothing = cfg.trainer.rm.iterative_data_smoothing
 
     # pull values from checkpoint
     trainer_restore_path = trainer.ckpt_path
@@ -105,6 +106,7 @@ def main(cfg) -> None:
         seed=cfg.model.seed,
         tokenizer=ptl_model.tokenizer,
     )
+    train_ds.iterative_data_smoothing = cfg.trainer.rm.iterative_data_smoothing
 
     train_dataloader = build_dataloader(
         cfg=cfg,
