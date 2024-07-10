@@ -14,7 +14,8 @@
 
 from collections import defaultdict
 from statistics import mean
-
+import os
+import json
 import torch
 from omegaconf.dictconfig import DictConfig
 from tqdm import tqdm
@@ -27,6 +28,7 @@ from nemo_aligner.metrics import InferenceMetricsHandler
 from nemo_aligner.utils.distributed import SyncTimer
 from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_limit_batches, compute_num_steps_per_epoch
+from nemo.utils.app_state import AppState
 
 IMAGE_CAPTION_KEY = "images_and_captions"
 
@@ -272,6 +274,22 @@ class SupervisedTrainer:
 
         self.ckpt_callback.custom_save(monitor_candidates=monitor_candidates, is_train_end=is_train_end)
 
+        if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+            app_state = AppState()
+            save_dir = app_state.log_dir
+            if os.path.basename(save_dir).startswith("run_"):
+                save_dir = os.path.dirname(save_dir)
+
+            save_path = os.path.join(save_dir, "iterative_data_smoothing_labels", "labels.jsonl")
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            with open(save_path, "w") as f:
+                for item in self.labels.cpu():
+                    json_line = json.dumps(item.item())
+                    f.write(json_line + "\n")
+            
+
+
+
     def set_max_steps(self):
         self.max_steps = self.num_steps_per_epoch * self.cfg.max_epochs
 
@@ -298,6 +316,21 @@ class SupervisedTrainer:
         assert loaded_values == to_broadcast.tolist()
         # restore max steps we need to run for
         self.set_max_steps()
+
+        if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+            app_state = AppState()
+            load_dir = app_state.log_dir
+            if os.path.basename(load_dir).startswith("run_"):
+                load_dir = os.path.dirname(load_dir)
+
+            load_path = os.path.join(load_dir, "iterative_data_smoothing_labels", "labels.jsonl")
+            if os.path.exists(load_path):
+                labels = []
+                with open(load_path, "r") as f:
+                    for line in f:
+                        labels.append(json.loads(line))
+                self.labels = torch.tensor(labels, device=torch.cuda.current_device())
+            
 
     @property
     def epoch(self):

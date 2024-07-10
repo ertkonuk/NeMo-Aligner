@@ -14,8 +14,8 @@ trainer:
     val_check_interval: 10
     save_interval: 10
 
-    iterative_data_smoothing: False
-    beta: 0.01
+    iterative_data_smoothing: True
+    beta: 0.7
 
     # how many GBS we loop over
     # set to float for a percentage

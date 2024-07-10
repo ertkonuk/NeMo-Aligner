@@ -11,7 +11,9 @@
 # FROM nvcr.io/nvidian/nemo:public
 # FROM gitlab-master.nvidia.com/dl/joc/nemo-ci/train:pipe.11040183
 # FROM nvcr.io/nvidian/nemo:aligner
-FROM gitlab-master.nvidia.com/dl/joc/nemo-aligner:v2-022924-nemo-1.23.0
+# FROM gitlab-master.nvidia.com/dl/joc/nemo-aligner:v2-022924-nemo-1.23.0
+FROM gitlab-master.nvidia.com/dl/joc/nemo-ci/main/train:pipe.16440368-x86
+
 
 # Testing
 # FROM nvcr.io/ea-bignlp/ga-participants/nemofw-training:23.08.02

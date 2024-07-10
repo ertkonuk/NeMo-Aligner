@@ -250,6 +250,24 @@ class MegatronGPTRewardModel(MegatronGPTModel, SupervisedInterface, Inferrable):
         return loss, acc_chosen
     
     def get_batch_reward(self, batch):
+        required_keys = set()
+        if parallel_state.get_pipeline_model_parallel_world_size() == 1:
+            required_keys.update(batch.keys())
+        else:
+            # there is a problem with apex ignoring the mask on the older models
+            # so we will always give the attention mask
+            required_keys.add("attention_mask")
+
+            if parallel_state.is_pipeline_first_stage():
+                required_keys.update(("chosen", "rejected", "position_ids"))
+
+            if parallel_state.is_pipeline_last_stage():
+                required_keys.update(("chosen_length", "rejected_length", "loss_mask"))
+
+        batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
+
+        # only do the torch.cat if it's available
+        lengths, tokens = None, None
         position_ids = (
             torch.cat((batch["position_ids"], batch["position_ids"]), dim=0)
             if batch["position_ids"] is not None

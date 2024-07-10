@@ -107,7 +107,7 @@ def main(cfg) -> None:
         tokenizer=ptl_model.tokenizer,
     )
     train_ds.iterative_data_smoothing = cfg.trainer.rm.iterative_data_smoothing
-    
+
     train_dataloader = build_dataloader(
         cfg=cfg,
         dataset=train_ds,

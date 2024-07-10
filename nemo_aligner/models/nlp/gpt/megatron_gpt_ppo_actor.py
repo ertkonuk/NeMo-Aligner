@@ -120,7 +120,7 @@ class MegatronGPTActorModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGen
                 prev_log_probs = batch["prev_log_probs"]
                 tokens = batch["tokens"]
 
-                curr_log_probs = from_parallel_logits_to_logprobs(vocab_parallel_logits=parallel_logits, target=tokens)
+                curr_log_probs = from_parallel_logits_to_logprobs(vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True)
 
                 scaled_entropy = torch.tensor(0.0, dtype=parallel_logits.dtype, device=parallel_logits.device)
                 if self.entropy_bonus > 0:
@@ -218,7 +218,7 @@ class MegatronGPTActorModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGen
 
             def id_func(output_tensor, non_loss_data=True):
                 logprobs = from_parallel_logits_to_logprobs(
-                    vocab_parallel_logits=output_tensor, target=batch[0], inference_only=inference_only
+                    vocab_parallel_logits=output_tensor, target=batch[0], inference_only=inference_only, higher_stability=True
                 )
                 return logprobs
 
