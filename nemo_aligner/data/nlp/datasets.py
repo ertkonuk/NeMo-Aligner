@@ -138,7 +138,7 @@ class RewardModelDataset(Dataset):
     """
 
     def __init__(
-        self, cfg, tokenizer, name, data_prefix, documents, data, seq_length, seed, drop_last=True,
+        self, cfg, tokenizer, name, data_prefix, documents, data, seq_length, seed, drop_last=True, iterative_data_smoothing=False
     ):
         super().__init__()
         self.cfg = cfg
@@ -152,6 +152,8 @@ class RewardModelDataset(Dataset):
         self.reset_attention_mask = cfg.data.get("reset_attention_mask", False)
         self.eod_mask_loss = cfg.data.get("eod_mask_loss", False)
         self.eos_id = tokenizer.eos_id
+
+        self.iterative_data_smoothing = iterative_data_smoothing
 
         # Checks
         assert np.min(documents) >= 0
@@ -226,15 +228,27 @@ class RewardModelDataset(Dataset):
             logging.info("WARNING: Got -1 as item index. Masking loss from this sample")
             loss_mask = torch.zeros_like(loss_mask)
 
-        output = {
-            "chosen": chosen_tokens,
-            "rejected": rejected_tokens,
-            "chosen_length": chosen_np.shape[0],
-            "rejected_length": rejected_np.shape[0],
-            "attention_mask": attention_mask,
-            "loss_mask": loss_mask,
-            "position_ids": position_ids,
-        }
+        if self.iterative_data_smoothing:
+            output = {
+                "chosen": chosen_tokens,
+                "rejected": rejected_tokens,
+                "chosen_length": chosen_np.shape[0],
+                "rejected_length": rejected_np.shape[0],
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "position_ids": position_ids,
+                "idx":idx
+            }
+        else:
+            output = {
+                "chosen": chosen_tokens,
+                "rejected": rejected_tokens,
+                "chosen_length": chosen_np.shape[0],
+                "rejected_length": rejected_np.shape[0],
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "position_ids": position_ids,
+            }
         return output
 
 

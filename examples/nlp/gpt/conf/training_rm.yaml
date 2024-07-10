@@ -11,8 +11,11 @@ trainer:
   rm:
     max_epochs: 1
     max_steps: -1
-    val_check_interval: 100
-    save_interval: 100
+    val_check_interval: 10
+    save_interval: 10
+
+    iterative_data_smoothing: False
+    beta: 0.01
 
     # how many GBS we loop over
     # set to float for a percentage

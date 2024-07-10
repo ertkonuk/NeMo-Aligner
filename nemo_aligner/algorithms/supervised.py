@@ -86,6 +86,9 @@ class SupervisedTrainer:
         # any metrics that require running full token-by-token inference during validation
         self.inference_metrics_handler = InferenceMetricsHandler(cfg.get("inference_metrics"))
 
+        if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+            self.labels = torch.ones(len(self.train_dataloader.dataset), device=torch.cuda.current_device())
+
     def validation_step(self, batch):
         self.model.prepare_for_validation_step()
 
@@ -161,6 +164,12 @@ class SupervisedTrainer:
     @torch.no_grad()
     def run_generation(self, batch):
         return self.model.infer({"text": batch["contexts"], "length": batch["context_lengths"]})
+    
+    @torch.no_grad()
+    def iterative_data_smoothing_update(self, batch):
+        out_chosen, out_rejected = self.model.get_batch_reward(batch)
+        chosen_prob = torch.exp(out_chosen) / (torch.exp(out_chosen) + torch.exp(out_rejected))
+        self.labels[batch["idx"]] = (1 - self.cfg.beta) * self.labels[batch["idx"]] + self.cfg.beta * chosen_prob.squeeze(1)
 
     def fit(self):
         if (not isinstance(self.train_dataloader.batch_sampler, MegatronPretrainingRandomBatchSampler)) and (
@@ -195,6 +204,8 @@ class SupervisedTrainer:
             )
 
             for _, batch in zip(loop_iter, global_pbar):
+                if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+                    batch["labels"] = self.labels[batch["idx"]]
 
                 self.timer.start("train_step_time")
                 loss, metrics = self.train_single_step(batch)
@@ -212,6 +223,9 @@ class SupervisedTrainer:
                 metrics = {f"train_{k}": v for k, v in metrics.items()}
 
                 self.step += 1
+
+                if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+                    self.iterative_data_smoothing_update(batch)
 
                 run_time_exceeded = self.run_timer.is_finished()
                 run_val, save_model, is_train_end = check_progress(

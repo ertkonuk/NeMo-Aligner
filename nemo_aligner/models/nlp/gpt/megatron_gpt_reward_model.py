@@ -61,6 +61,7 @@ class MegatronGPTRewardModel(MegatronGPTModel, SupervisedInterface, Inferrable):
                 "avoid explicit casting for pipeline communication"
             )
         self.automatic_optimization = False
+        self.iterative_data_smoothing = False
 
         reward_standardization = cfg.get("reward_standardization")
 
@@ -181,7 +182,11 @@ class MegatronGPTRewardModel(MegatronGPTModel, SupervisedInterface, Inferrable):
 
             def loss_func(output_tensor):
                 # Loss per micro batch (ub).
-                loss_for_ub, acc_chosen = self.loss_func(output_tensor)
+                if self.iterative_data_smoothing and "labels" in batch:
+                    loss_for_ub, acc_chosen = self.loss_func(output_tensor, labels=batch["labels"])
+                else:
+                    loss_for_ub, acc_chosen = self.loss_func(output_tensor)
+
                 if validation_step and not self.cfg.data.get("validation_drop_last", True):
                     num_valid_tokens_in_ub = batch["loss_mask"].sum()
                     if loss_for_ub.isnan():
@@ -233,12 +238,35 @@ class MegatronGPTRewardModel(MegatronGPTModel, SupervisedInterface, Inferrable):
         out_chosen, out_rejected = torch.split(output_tensor.float(), output_tensor.shape[0] // 2, dim=0)
         return out_chosen, out_rejected
 
-    def loss_func(self, output_tensor):
+    def loss_func(self, output_tensor, labels=None):
         out_chosen, out_rejected = self.split_output_tensor(output_tensor)
         comp = out_chosen > out_rejected
         acc_chosen = torch.sum(comp) / comp.shape[0]
-        loss = -torch.nn.functional.logsigmoid(out_chosen - out_rejected).mean()
+
+        if labels is not None:
+            loss = -(labels * torch.nn.functional.logsigmoid(out_chosen - out_rejected) + (1-labels) * torch.nn.functional.logsigmoid(out_rejected - out_chosen)).mean()
+        else:
+            loss = -torch.nn.functional.logsigmoid(out_chosen - out_rejected).mean()
         return loss, acc_chosen
+    
+    def get_batch_reward(self, batch):
+        position_ids = (
+            torch.cat((batch["position_ids"], batch["position_ids"]), dim=0)
+            if batch["position_ids"] is not None
+            else None
+        )
+        if batch["chosen_length"] is not None and batch["rejected_length"] is not None:
+            # Combine chosen and rejected lengths and then tokens.
+            lengths = torch.cat((batch["chosen_length"], batch["rejected_length"]), dim=0)
+
+        if batch["chosen"] is not None and batch["rejected"] is not None:
+            tokens = torch.cat((batch["chosen"], batch["rejected"]), dim=0)
+
+        output_tensor = self.model(input_ids=tokens, lengths=lengths, position_ids=position_ids, attention_mask=batch["attention_mask"])
+        out_chosen, out_rejected = self.split_output_tensor(output_tensor)
+
+        return out_chosen, out_rejected
+
 
     def get_loss_and_metrics(self, batch, forward_only):
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
