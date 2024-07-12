@@ -16,6 +16,7 @@ from collections import defaultdict
 from statistics import mean
 import os
 import shutil
+import time
 import json
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -288,6 +289,7 @@ class SupervisedTrainer:
                     json_line = json.dumps(item.item())
                     f.write(json_line + "\n")
             
+            time.sleep(10)
             shutil.move(save_path, os.path.join(save_dir, "iterative_data_smoothing_labels", "labels.jsonl"))
             
 
