@@ -15,8 +15,7 @@
 from collections import defaultdict
 from statistics import mean
 import os
-import shutil
-import time
+
 import json
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -282,17 +281,12 @@ class SupervisedTrainer:
             if os.path.basename(save_dir).startswith("run_"):
                 save_dir = os.path.dirname(save_dir)
 
-            save_path = os.path.join(save_dir, "iterative_data_smoothing_labels", "tmp.jsonl")
+            save_path = os.path.join(save_dir, "iterative_data_smoothing_labels", "labels.jsonl")
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             with open(save_path, "w") as f:
                 for item in self.labels.cpu():
                     json_line = json.dumps(item.item())
                     f.write(json_line + "\n")
-            
-            time.sleep(10)
-            shutil.move(save_path, os.path.join(save_dir, "iterative_data_smoothing_labels", "labels.jsonl"))
-            
-
 
 
     def set_max_steps(self):
