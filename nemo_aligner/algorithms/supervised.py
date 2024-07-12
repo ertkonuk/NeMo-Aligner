@@ -280,12 +280,14 @@ class SupervisedTrainer:
             if os.path.basename(save_dir).startswith("run_"):
                 save_dir = os.path.dirname(save_dir)
 
-            save_path = os.path.join(save_dir, "iterative_data_smoothing_labels", "labels.jsonl")
+            save_path = os.path.join(save_dir, "iterative_data_smoothing_labels", "tmp.jsonl")
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             with open(save_path, "w") as f:
                 for item in self.labels.cpu():
                     json_line = json.dumps(item.item())
                     f.write(json_line + "\n")
+            
+            os.replace(save_path, os.path.join(save_dir, "iterative_data_smoothing_labels", "labels.jsonl"))
             
 
 
