@@ -290,7 +290,8 @@ class ReinforceTrainer:
                 rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
                 rollout_batch["rewards"] = rewards
                 rollout_batches.append(rollout_batch)
-            
+        
+        clear_memory()
         return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
 
     def compute_global_rollout_metrics(self, rollout_batches):
