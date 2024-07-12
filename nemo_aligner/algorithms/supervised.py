@@ -281,12 +281,13 @@ class SupervisedTrainer:
             if os.path.basename(save_dir).startswith("run_"):
                 save_dir = os.path.dirname(save_dir)
 
-            save_path = os.path.join(save_dir, "iterative_data_smoothing_labels", "labels.jsonl")
+            save_path = os.path.join(save_dir, "iterative_data_smoothing_labels", "labels.pt")
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            with open(save_path, "w") as f:
-                for item in self.labels.cpu():
-                    json_line = json.dumps(item.item())
-                    f.write(json_line + "\n")
+            torch.save(self.labels.cpu(), save_path)
+            # with open(save_path, "w") as f:
+            #     for item in self.labels.cpu():
+            #         json_line = json.dumps(item.item())
+            #         f.write(json_line + "\n")
 
 
     def set_max_steps(self):
@@ -322,13 +323,15 @@ class SupervisedTrainer:
             if os.path.basename(load_dir).startswith("run_"):
                 load_dir = os.path.dirname(load_dir)
 
-            load_path = os.path.join(load_dir, "iterative_data_smoothing_labels", "labels.jsonl")
-            if os.path.exists(load_path):
-                labels = []
-                with open(load_path, "r") as f:
-                    for line in f:
-                        labels.append(json.loads(line))
-                self.labels = torch.tensor(labels, device=torch.cuda.current_device())
+            load_path = os.path.join(load_dir, "iterative_data_smoothing_labels", "labels.pt")
+            labels = torch.load(load_path)
+            self.labels = torch.tensor(labels, device=torch.cuda.current_device())
+            # if os.path.exists(load_path):
+            #     labels = []
+            #     with open(load_path, "r") as f:
+            #         for line in f:
+            #             labels.append(json.loads(line))
+            #     self.labels = torch.tensor(labels, device=torch.cuda.current_device())
             
 
     @property
