@@ -13,7 +13,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) 
 ### Breaking changes
 
 ### Bug Fixes
-- Fix bug in convert_to_amp_o2_format function, allow for models to have model.module already in keys.
 
 ## [0.3.1] - 2024-05
 - SPIN: added `rollout_micro_batch_size` parameter which allows users to set the batch size for doing generation during SPIN training.

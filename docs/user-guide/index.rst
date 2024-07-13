@@ -1,18 +1,18 @@
 .. include:: /content/nemo.rsts
 
-.. include:: modelalignment.rsts
+.. include:: ModelAlignment.rsts
 
 .. toctree::
    :maxdepth: 4
    :titlesonly:
 
-   sft.rst
-   rlhf.rst
-   steerlm.rst
-   steerlm2.rst
-   dpo.rst
-   spin.rst
-   draftp.rst
+   SFT.rst
+   RLHF.rst
+   SteerLM.rst
+   SteerLM2.rst
+   DPO.rst
+   SPIN.rst
+   DRaFTP.rst
 
 :ref:`Prerequisite Obtaining a Pre-Trained Model <prerequisite>`
    This section provides instructions on how to download pre-trained LLMs in .nemo format. The following section will use These base LLMs for further fine-tuning and alignment. 
@@ -30,7 +30,10 @@
    SteerLM 2.0 is an extenstion to SteerLM method that introduces an iterative training procedure to explicitly enforce the generated responses to follow the desired attribute distribution.
 
 :ref:`Model Alignment by Direct Preference Optimisation (DPO) <model-aligner-dpo>`
-   DPO is a simpler alignment method compared to RLHF. DPO introduces a novel parameterization of the reward model in RLHF. This parameterization allows us to extract the corresponding optimal 
+   DPO is a simpler alignment method compared to RLHF. DPO introduces a novel parameterization of the reward model in RLHF. This parameterization allows us to extract the corresponding optimal policy.
+
+:ref:`Model Alignment by Rejection Sampling (RS) <model-aligner-rs>`
+   RS is a simple online alignment algorithm. In RS, the policy model generates several responses
 
 :ref:`Fine-tuning Stable Diffusion with DRaFT+ <model-aligner-draftp>`
    DRaFT+ is an algorithm for fine-tuning text-to-image generative diffusion models by directly backpropagating through a reward model which alleviates the mode collapse issues from DRaFT algorithm and improves diversity through regularization. 
