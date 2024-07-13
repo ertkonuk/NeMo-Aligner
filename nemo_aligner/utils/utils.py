@@ -344,6 +344,7 @@ def swap_dict(resident_model, cpu_weights, offload_onto_cpu=True, megatron_amp_O
 
     if offload_onto_cpu:
         offloaded_weights = retrieve_model_state_dict_in_cpu(resident_model, megatron_amp_O2=megatron_amp_O2)
+    
     resident_model.load_state_dict(cpu_weights)
     return offloaded_weights
 
