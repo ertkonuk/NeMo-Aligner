@@ -35,7 +35,7 @@ def get_future_result(future, *keys):
     and broadcasts it to the model parallel group. Then it returns it as output.
     """
     output = None if future is None else future.result()
-    
+
     results = []
 
     for key in keys:
