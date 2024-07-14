@@ -8,6 +8,7 @@
 
    sft.rst
    rlhf.rst
+   reinforce.rst
    steerlm.rst
    steerlm2.rst
    dpo.rst

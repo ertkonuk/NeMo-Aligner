@@ -140,7 +140,7 @@ You can use slurm to launch the 2 jobs and get them to coordinate together in a 
    CRITIC_CONFIG_NAME="inference_rm"
 
    CONF_DIR="${NEMO_RLHF_DIR}/examples/nlp/gpt/conf"
-   CONFIG_NAME="gpt_rs_actor"
+   CONFIG_NAME="gpt_reinforce_actor"
 
    mkdir -p $CRITIC_LOG_DIR
 
