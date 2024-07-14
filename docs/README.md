@@ -7,6 +7,7 @@ NeMo-Aligner uses custom trainers to coordinate all aspects of training. There a
 2. [DPOTrainer](/nemo_aligner/algorithms/dpo.py): for DPO training.
 3. [CriticServerTrainer](/nemo_aligner/algorithms/critic_server_trainer.py): trains the RL critic via PyTriton requests. It will also run the reward model depending on the configuration.
 4. [PPOTrainer](/nemo_aligner/algorithms/ppo.py): performs the RLHF PPO training, since PPO has components such as the Critic, this trainer will send inference and train requests via [PyTriton](https://github.com/triton-inference-server/pytriton) to the CriticServerTrainer to train and run inference on the critic.
+5. [RSTrainer](/nemo_aligner/algorithms/rs.py): performs the RLHF rejection sampling training. Since RS needs a reward model, this trainer will send inference requests via [PyTriton](https://github.com/triton-inference-server/pytriton) to run inference on the reward model.
 
 ## Configuration guide
 
@@ -23,6 +24,7 @@ Our custom trainers will only call predefined APIs on the model passed in. These
 * Reward Model Inference: [serve_reward_model.py](/examples/nlp/gpt/serve_reward_model.py) with [inference_rm.yaml](/examples/nlp/gpt/conf/inference_rm.yaml).
 * PPO Critic Server: [serve_ppo_critic.py](/examples/nlp/gpt/serve_ppo_critic.py) with [gpt_ppo_critic.yaml](/examples/nlp/gpt/conf/gpt_ppo_critic.yaml).
 * PPO Actor Training: [train_gpt_ppo_actor.py](/examples/nlp/gpt/train_gpt_ppo_actor.py) with [gpt_ppo_actor.yaml](/examples/nlp/gpt/conf/gpt_ppo_actor.yaml).
+* Rejection Sampling Training: [train_gpt_rs_actor.py](/examples/nlp/gpt/train_gpt_rs_actor.py) with [gpt_rs_actor.yaml](/examples/nlp/gpt/conf/gpt_rs_actor.yaml).
 
 To run a full RLHF PPO job, we need to start both the CriticServerTrainer and PPOTrainer.
 
