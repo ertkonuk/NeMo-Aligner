@@ -33,10 +33,9 @@ from nemo_aligner.utils.ppo_utils import (
     calculate_kl_penalty,
     create_mask,
 )
-from nemo_aligner.utils.server_utils import FutureResult
 from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
-from nemo_aligner.utils.utils import clear_memory, cpu_dict, masked_mean
+from nemo_aligner.utils.utils import clear_memory, cpu_dict
 
 
 def compute_num_rollout_microbatches(dataloader):
