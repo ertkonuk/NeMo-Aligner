@@ -89,7 +89,7 @@ class SupervisedTrainer:
         # any metrics that require running full token-by-token inference during validation
         self.inference_metrics_handler = InferenceMetricsHandler(cfg.get("inference_metrics"))
 
-        if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+        if self.cfg.get("iterative_data_smoothing"):
             self.labels = torch.ones(len(self.train_dataloader.dataset), device=torch.cuda.current_device())
 
     def validation_step(self, batch):
@@ -207,7 +207,7 @@ class SupervisedTrainer:
             )
 
             for _, batch in zip(loop_iter, global_pbar):
-                if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+                if self.cfg.get("iterative_data_smoothing"):
                     batch["labels"] = self.labels[batch["idx"]]
 
                 self.timer.start("train_step_time")
@@ -227,7 +227,7 @@ class SupervisedTrainer:
 
                 self.step += 1
 
-                if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+                if self.cfg.get("iterative_data_smoothing"):
                     self.iterative_data_smoothing_update(batch)
 
                 run_time_exceeded = self.run_timer.is_finished()
@@ -275,7 +275,7 @@ class SupervisedTrainer:
 
         self.ckpt_callback.custom_save(monitor_candidates=monitor_candidates, is_train_end=is_train_end)
 
-        if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+        if self.cfg.get("iterative_data_smoothing"):
             app_state = AppState()
             save_dir = app_state.log_dir
             if os.path.basename(save_dir).startswith("run_"):
@@ -284,10 +284,6 @@ class SupervisedTrainer:
             save_path = os.path.join(save_dir, "iterative_data_smoothing_labels", "labels.pt")
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             torch.save(self.labels.cpu(), save_path)
-            # with open(save_path, "w") as f:
-            #     for item in self.labels.cpu():
-            #         json_line = json.dumps(item.item())
-            #         f.write(json_line + "\n")
 
 
     def set_max_steps(self):
@@ -317,7 +313,7 @@ class SupervisedTrainer:
         # restore max steps we need to run for
         self.set_max_steps()
 
-        if "iterative_data_smoothing" in self.cfg and self.cfg.iterative_data_smoothing:
+        if self.cfg.get("iterative_data_smoothing"):
             app_state = AppState()
             load_dir = app_state.log_dir
             if os.path.basename(load_dir).startswith("run_"):
@@ -326,13 +322,7 @@ class SupervisedTrainer:
             load_path = os.path.join(load_dir, "iterative_data_smoothing_labels", "labels.pt")
             labels = torch.load(load_path)
             self.labels = torch.tensor(labels, device=torch.cuda.current_device())
-            # if os.path.exists(load_path):
-            #     labels = []
-            #     with open(load_path, "r") as f:
-            #         for line in f:
-            #             labels.append(json.loads(line))
-            #     self.labels = torch.tensor(labels, device=torch.cuda.current_device())
-            
+
 
     @property
     def epoch(self):
