@@ -1,0 +1,24 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
+{
+    "build": {"context": "..", "dockerfile": "Dockerfile"},
+    "workspaceFolder": "/home/abukharin/NeMo-Aligner",
+    "workspaceMount": "source=/home/abukharin/,target=/home/abukharin/,type=bind",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "charliermarsh.ruff",
+                "eamodio.gitlens",
+                "ms-azuretools.vscode-docker",
+                "ms-python.python",
+                "usernamehw.errorlens"
+            ]
+        }
+    },
+    "remoteUser": "abukharin",
+    "runArgs": [
+        "--hostname", "",
+        "--gpus", "all",
+        "--shm-size", "1024m"
+    ]
+}

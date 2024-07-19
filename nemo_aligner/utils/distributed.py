@@ -421,3 +421,15 @@ def pad_tensors_to_max_global_seq_len(list_of_tensors, pad_value, group, sequenc
         max_seq_length = max(sequence_length_to_pad_to, max_seq_length)
 
     return torch.nn.functional.pad(tensors_padded, (0, max_seq_length - tensors_padded.size(-1)), value=pad_value)
+
+
+def pad_batch(x, y, pad_value):
+    '''Given tensors of shape [N1, M1] and [N2, M2], will pad tensors to shape [N1, max(M1, M2)], [N2, max(M1, M2)]
+    '''
+    if x.shape[1] > y.shape[1]:
+        padding = (0, x.shape[1] - y.shape[1])
+        y = torch.nn.functional.pad(y, padding, value=pad_value)
+    elif x.shape[1] < y.shape[1]:
+        padding = (0, y.shape[1] - x.shape[1])
+        x = torch.nn.functional.pad(x, padding, value=pad_value)
+    return x, y

@@ -298,6 +298,35 @@ def collate_with_batch_max_sequence_length(
         "position_ids": position_ids,
     }
 
+def collate_with_batch_max_sequence_length_and_args(
+    data_batch, response_token_length, eos_id, reset_position_ids, reset_attention_mask, eod_mask_loss
+):
+    """collate function that batches by max sequence length
+    """
+    texts = [item["text"] for item in data_batch]
+    loss_multipliers = torch.as_tensor([item["loss_multiplier"] for item in data_batch]).view(len(data_batch), 1)
+    lengths = torch.as_tensor([item["length"] for item in data_batch])
+    batch_max_length = lengths.max()
+
+    args = [item["args"] for item in data_batch]
+
+    texts = batch_pad_to_fixed_len(texts, batch_max_length + response_token_length, eos_id)
+
+    # NOTE: the attention mask is 1x1xSxS, which will broadcast on the batch dimension
+    attention_masks, loss_masks, position_ids = get_ltor_masks_and_position_ids(
+        texts, eos_id, reset_position_ids, reset_attention_mask, eod_mask_loss
+    )
+
+    return {
+        "text": texts,
+        "length": lengths,
+        "attention_mask": attention_masks,
+        # to preserve the loss mask from the dataset
+        "loss_mask": loss_masks * loss_multipliers,
+        "position_ids": position_ids,
+        "args": args,
+    }
+
 
 def apply_func_to_dict(func, dictionary):
     return {k: func(v) for k, v in dictionary.items()}
