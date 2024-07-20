@@ -181,6 +181,7 @@ def main(cfg) -> None:
     if custom_trainer_state_dict is not None:
         reinforce_trainer.load_state_dict(custom_trainer_state_dict)
 
+    print("STARTING TRAINING")
     reinforce_trainer.fit()
 
 

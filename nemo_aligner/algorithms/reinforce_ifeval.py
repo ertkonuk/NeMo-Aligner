@@ -187,6 +187,7 @@ class ReinforceIFEvalTrainer:
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
         """
+        print("RUNNING INFERENCE")
         rollout_batches = []
         if not is_validation:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
@@ -218,16 +219,17 @@ class ReinforceIFEvalTrainer:
                         current_batch["response_lengths"] = torch.concatenate([current_batch["response_lengths"], rollout_batch["response_lengths"]], dim=0)
                         current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
-
+                    print("COMPUTING REWARDS")
                     rewards = []
                     for i in range(rollout_batch["response_tokens"].size(0)):
                         prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                         response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
                         rewards.append(self.ifeval_rewards(prompt, response, args_duplicated[i]))
 
+
                     rewards = torch.tensor(rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
-
+                    print(" REWARDS", rewards)
                     if "rewards" in current_batch:
                         current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
                         current_batch["init_logprobs"], _ = pad_batch(current_batch["init_logprobs"], init_policy_logprobs, 0)
@@ -256,6 +258,7 @@ class ReinforceIFEvalTrainer:
                     current_batch["baseline"] = torch.zeros_like(current_batch["rewards"])
 
                 rollout_batches.append(current_batch)
+                print("DID ROLLOUT BATCH")
 
         else:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
@@ -345,7 +348,7 @@ class ReinforceIFEvalTrainer:
 
 
         rollout_batches, rollout_metrics = self._run_inference(dataloader_iter, num_microbatches, is_validation=False)
-
+        print("FINISHED INFERENCE")
         reinforce_rollout_data, reinforce_rollout_metrics = map(cpu_dict, self.generate_reinforce_data(rollout_batches))
 
         self.model.finish_inference()
@@ -461,7 +464,9 @@ class ReinforceIFEvalTrainer:
                 # start training
                 clear_memory()
                 self.timer.start("train_time")
+                print("RUNNING TRAINING")
                 self.run_training(rollout_dataloader_iter)
+                print("Finished TRAINING")
                 self.timer.stop("train_time")
                 timing_metrics["train_time"] = self.timer.get("train_time")
 
