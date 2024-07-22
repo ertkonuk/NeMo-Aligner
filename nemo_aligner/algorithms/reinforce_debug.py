@@ -259,7 +259,6 @@ class ReinforceDebugger:
                         current_batch["init_logprobs"] = init_policy_logprobs
 
                 # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
-
                 if self.compute_init_policy_kl:
                     init_policy_kl = calculate_kl_penalty(
                         log_probs_a=current_batch["logprobs"],
