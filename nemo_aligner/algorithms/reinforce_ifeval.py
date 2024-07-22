@@ -257,14 +257,14 @@ class ReinforceIFEvalTrainer:
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
 
                     # Get reward and init_policy logprobs
-                    ifeval_rewards = []
+                    rewards = rollout_batch["response_lengths"].unsqueeze(-1) * 200
                     for i in range(rollout_batch["response_tokens"].size(0)):
                         prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                         response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
-                        ifeval_rewards.append(self.ifeval_rewards(prompt, response, args_duplicated[i]))
+                        rewards[i, 0]=self.ifeval_rewards(prompt, response, args_duplicated[i])
 
                     #rewards = torch.tensor(ifeval_rewards, device=rollout_batch["response_lengths"].device, dtype=torch.float32).unsqueeze(-1) + 1e-3
-                    rewards = 1 / rollout_batch["response_lengths"].unsqueeze(-1) * 200
+                    
                     print("hi", rewards.dtype, rewards.device, rollout_batch["response_lengths"].device)
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
@@ -305,11 +305,11 @@ class ReinforceIFEvalTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
                 
-                ifeval_rewards = []
+                rewards = 1 / rollout_batch["response_lengths"].unsqueeze(-1) * 200
                 for i in range(rollout_batch["response_tokens"].size(0)):
                     prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                     response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
-                    ifeval_rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
+                    rewards[i, 0]=self.ifeval_rewards(prompt, response, args_duplicated[i])
                 rewards = 1 / rollout_batch["response_lengths"].unsqueeze(-1) * 200
                 #rewards = torch.tensor(ifeval_rewards, device=rollout_batch["response_lengths"].device, dtype=torch.float32).unsqueeze(-1) + 1e-3
                 print("hi2", rewards.device, rollout_batch["response_lengths"].device)
