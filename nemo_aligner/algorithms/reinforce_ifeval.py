@@ -265,7 +265,7 @@ class ReinforceIFEvalTrainer:
 
                     rewards = torch.tensor(ifeval_rewards, device=rollout_batch["response_lengths"].device, dtype=torch.float32).unsqueeze(-1) + 1e-3
                     
-                    print("hi", rewards.dtype, rewards.device, rollout_batch["response_lengths"].device) + 1e-3
+                    print("hi", rewards.dtype, rewards.device, rollout_batch["response_lengths"].device)
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
                     if "rewards" in current_batch:
