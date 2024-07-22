@@ -263,10 +263,9 @@ class ReinforceIFEvalTrainer:
                         response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
                         ifeval_rewards.append(self.ifeval_rewards(prompt, response, args_duplicated[i]))
 
-                    rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device, dtype=torch.float32).unsqueeze(-1)
-                    print("hi", rewards, rewards.dtype)
-                    rewards2 = 1 / rollout_batch["response_lengths"].unsqueeze(-1) * 200
-                    print("bi", rewards, rewards2.dtype)
+                    rewards = torch.tensor(ifeval_rewards, device=rollout_batch["response_lengths"].device, dtype=torch.float32).unsqueeze(-1) + 1e-3
+                    
+                    print("hi", rewards.dtype, rewards.device, rollout_batch["response_lengths"].device) + 1e-3
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
                     if "rewards" in current_batch:
@@ -312,8 +311,8 @@ class ReinforceIFEvalTrainer:
                     response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
                     ifeval_rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
                 rewards = 1 / rollout_batch["response_lengths"].unsqueeze(-1) * 200
-                rewards = torch.tensor(ifeval_rewards, device=rollout_batch["response_tokens"].device, dtype=torch.float32).unsqueeze(-1)
-                print("hi2", rewards, rewards.dtype)
+                rewards = torch.tensor(ifeval_rewards, device=rollout_batch["response_lengths"].device, dtype=torch.float32).unsqueeze(-1) + 1e-3
+                print("hi2", rewards.device, rollout_batch["response_lengths"].device)
                 rollout_batch["rewards"] = rewards
                 rollout_batches.append(rollout_batch)
         
