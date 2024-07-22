@@ -20,4 +20,5 @@ with open("data/ifeval_train_prompts.jsonl", "w") as f:
 
 with open("data/ifeval_val_prompts.jsonl", "w") as f:
     for entry in data[:128]:
+        print(entry)
         f.write(json.dumps(entry) + "\n")

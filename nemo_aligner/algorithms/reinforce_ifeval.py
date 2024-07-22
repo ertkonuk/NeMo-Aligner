@@ -509,7 +509,8 @@ class ReinforceIFEvalTrainer:
 
                 if save_model:
                     step_metrics = {k: torch.as_tensor(v) for k, v in step_metrics.items()}
-                    self.save(step_metrics, is_train_end=is_train_end)
+                    # self.save(step_metrics, is_train_end=is_train_end)
+                    self.save(is_train_end=is_train_end)
 
                 if run_time_exceeded:
                     logging.info(f"Time limit given by run_timer={self.run_timer} reached. Stopping run")
