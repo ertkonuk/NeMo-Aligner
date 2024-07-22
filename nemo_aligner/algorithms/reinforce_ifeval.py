@@ -262,6 +262,10 @@ class ReinforceIFEvalTrainer:
                         prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                         response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
                         rewards[i]+=self.ifeval_rewards(prompt, response, args_duplicated[i])+1e-5
+                        # print(self.ifeval_rewards(prompt, response, args_duplicated[i]))
+                        if torch.rand(1) < 0.5:
+                            rewards[i]+=1#self.ifeval_rewards(prompt, response, inference_batch["args"][i]) +1e-5
+
 
                     #rewards = torch.tensor(ifeval_rewards, device=rollout_batch["response_lengths"].device, dtype=torch.float32).unsqueeze(-1) + 1e-3
                     
@@ -309,7 +313,9 @@ class ReinforceIFEvalTrainer:
                 for i in range(rollout_batch["response_tokens"].size(0)):
                     prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                     response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
-                    rewards[i]+=torch.rand(1)#self.ifeval_rewards(prompt, response, inference_batch["args"][i]) +1e-5
+                    if torch.rand(1) < 0.5:
+                        rewards[i]+=1#self.ifeval_rewards(prompt, response, inference_batch["args"][i]) +1e-5
+
                 
                 #rewards = torch.tensor(ifeval_rewards, device=rollout_batch["response_lengths"].device, dtype=torch.float32).unsqueeze(-1) + 1e-3
                 print("hi2", rewards.device, rollout_batch["response_lengths"].device)
