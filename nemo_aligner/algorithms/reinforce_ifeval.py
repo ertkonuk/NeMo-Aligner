@@ -217,7 +217,7 @@ class ReinforceIFEvalTrainer:
             kwargs=args["instruction_kwargs"]
         )
 
-        output = test_instruction_following_strict(example, {prompt:response})
+        output = test_instruction_following_strict(example, {prompt:response.replace("<extra_id_1>", "")})
         return float(all(output.follow_instruction_list))
     
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
