@@ -37,7 +37,7 @@ from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
 from nemo_aligner.utils.utils import clear_memory, cpu_dict, masked_mean
 from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
-
+import time
 
 
 def compute_num_rollout_microbatches(dataloader):
@@ -311,6 +311,7 @@ class ReinforceIFEvalTrainer:
                     response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
 
                     rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
+                time.sleep(10)
                 rewards = torch.tensor(rewards, device=rollout_batch["response_tokens"].device).unsqueeze(-1).float()
                 
                 rollout_batch["rewards"] = rewards
