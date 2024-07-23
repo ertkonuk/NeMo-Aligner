@@ -236,6 +236,7 @@ class ReinforceIFEvalTrainer:
                     'position_ids':torch.concatenate([inference_batch['position_ids']] * self.duplicate_prompts, dim=0),
                 }
                 args_duplicated = inference_batch["args"] * self.duplicate_prompts
+                print(args_duplicated)
                 for _ in range(self.generation_iter):
                     
                     if current_batch is None:
@@ -262,7 +263,7 @@ class ReinforceIFEvalTrainer:
                         prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                         response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
                         # rewards[i]+=self.ifeval_rewards(prompt, response, args_duplicated[i])
-                        rewards.append(self.ifeval_rewards(prompt, response, args_duplicated["args"][i]))
+                        rewards.append(self.ifeval_rewards(prompt, response, args_duplicated[i]))
                     rewards = torch.tensor(rewards, device=rollout_batch["response_tokens"].device).unsqueeze(-1).float()
 
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
