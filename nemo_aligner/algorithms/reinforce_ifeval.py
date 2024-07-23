@@ -218,7 +218,7 @@ class ReinforceIFEvalTrainer:
         )
 
         output = test_instruction_following_strict(example, {prompt:response.replace("<extra_id_1>", "")})
-        return int(all(output.follow_instruction_list))
+        return int(output.follow_all_instructions)
     
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
@@ -310,8 +310,8 @@ class ReinforceIFEvalTrainer:
                     prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                     response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
 
-                    #rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
-                    rewards.append(len(response))
+                    rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
+                    #rewards.append(len(response))
                 time.sleep(10)
                 rewards = torch.tensor(rewards, device=rollout_batch["response_tokens"].device).unsqueeze(-1).float()
                 
