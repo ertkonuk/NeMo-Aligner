@@ -257,11 +257,13 @@ class ReinforceIFEvalTrainer:
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
 
                     # Get reward and init_policy logprobs
-                    rewards = torch.zeros_like(rollout_batch["response_lengths"].unsqueeze(-1)).float()
+                    rewards = []#torch.zeros_like(rollout_batch["response_lengths"].unsqueeze(-1)).float()
                     for i in range(rollout_batch["response_tokens"].size(0)):
                         prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                         response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
-                        rewards[i]+=self.ifeval_rewards(prompt, response, args_duplicated[i])
+                        # rewards[i]+=self.ifeval_rewards(prompt, response, args_duplicated[i])
+                        rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
+                    rewards = torch.tensor(rewards, device=rollout_batch["response_tokens"].device).unsqueeze(-1).float()
 
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
@@ -302,13 +304,13 @@ class ReinforceIFEvalTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
                 
-                rewards = torch.zeros_like(rollout_batch["response_lengths"].unsqueeze(-1)).float()
+                rewards = []
                 for i in range(rollout_batch["response_tokens"].size(0)):
                     prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                     response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
 
-                    rewards[i]+=self.ifeval_rewards(prompt, response, inference_batch["args"][i])
-
+                    rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
+                rewards = torch.tensor(rewards, device=rollout_batch["response_tokens"].device).unsqueeze(-1).float()
                 
                 rollout_batch["rewards"] = rewards
                 rollout_batches.append(rollout_batch)
@@ -543,8 +545,8 @@ class ReinforceIFEvalTrainer:
 
                 if save_model:
                     step_metrics = {k: torch.as_tensor(v) for k, v in step_metrics.items()}
-                    #self.save(step_metrics, is_train_end=is_train_end)
-                    self.save(is_train_end=is_train_end)
+                    self.save(step_metrics, is_train_end=is_train_end)
+                    #self.save(is_train_end=is_train_end)
 
                 if run_time_exceeded:
                     logging.info(f"Time limit given by run_timer={self.run_timer} reached. Stopping run")

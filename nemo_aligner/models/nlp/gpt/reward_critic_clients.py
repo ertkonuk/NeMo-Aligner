@@ -23,6 +23,7 @@ from omegaconf import DictConfig
 from nemo_aligner.servers.http_communicator import HTTPCommunicator
 from nemo_aligner.utils.distributed import broadcast_2d_tensor_within_mp, gather_tensor, run_if_model_parallel_src
 from nemo_aligner.utils.server_utils import FutureResult
+from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
 
 
 """A remote client that acts like a real Reward Model and Critic forwards all requests from the actor
@@ -219,3 +220,56 @@ class RemoteGPTRMClient:
 
         return RMFutureResult(rm_future)
 
+
+@dataclass
+class RemoteMultitaskClient:
+    cfg: DictConfig
+
+    def __post_init__(self):
+        cfg = self.cfg
+
+        server_dict = {cfg.reward_model.name: (cfg.reward_model.ip, cfg.reward_model.port)}
+
+        self.communicator = HTTPCommunicator.create_http_communicator_from_dict(server_dict)
+        self.communicator.print_server_dict()
+        self.combine_rm_and_critic_server = self.cfg.combine_rm_and_critic_server
+        self.pad_to_length = self.cfg.pad_to_length
+
+    def ifeval_rewards(self, batch, args):
+        prompt, response = None, None
+        example = InputExample(
+            key="",
+            instruction_id_list=args["instruction_id_list"],
+            prompt=prompt,
+            kwargs=args["instruction_kwargs"]
+        )
+
+        output = test_instruction_following_strict(example, {prompt:response.replace("<extra_id_1>", "")})
+        return int(all(output.follow_instruction_list))
+
+    def infer_rm_critic(self, rollout_batch, args):
+        response_tokens = rollout_batch["response_tokens"].cpu()
+        og_seq_length = response_tokens.size(-1)
+
+        if self.pad_to_length is not None:
+            assert (
+                og_seq_length <= self.pad_to_length
+            ), f"original shape before padding {og_seq_length} is higher than {self.pad_to_length}"
+            response_tokens = torch.nn.functional.pad(
+                response_tokens, (0, self.pad_to_length - response_tokens.size(-1)), value=0
+            )
+
+        rm_indices = [i for i in range(response_tokens.size(0)) if args[i]["task"] == "reward_model"]
+        ifeval_indices = [i for i in range(response_tokens.size(0)) if args[i]["task"] == "ifeval"]
+
+
+        send_data = {
+            "tokens": response_tokens.numpy(),
+            "sequence_lengths": rollout_batch["response_lengths"][rm_indices].unsqueeze(1).cpu().numpy(),
+        }
+
+        rm_future = run_if_model_parallel_src(
+            self.communicator.send_data_to_server, server_name=self.cfg.reward_model.name, data=send_data
+        )
+
+        return RMFutureResult(rm_future)
