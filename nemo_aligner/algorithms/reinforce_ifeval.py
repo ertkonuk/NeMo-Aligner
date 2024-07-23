@@ -310,7 +310,8 @@ class ReinforceIFEvalTrainer:
                     prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                     response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
 
-                    rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
+                    #rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
+                    rewards.append(len(response))
                 time.sleep(10)
                 rewards = torch.tensor(rewards, device=rollout_batch["response_tokens"].device).unsqueeze(-1).float()
                 
