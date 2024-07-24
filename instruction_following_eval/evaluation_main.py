@@ -120,7 +120,7 @@ def test_instruction_following_strict(
       instruction_id_list=inp.instruction_id_list,
       prompt=inp.prompt,
       response=response,
-      follow_all_instructions=False,#all(is_following_list),
+      follow_all_instructions=all(is_following_list),
       follow_instruction_list=is_following_list,
   )
 
