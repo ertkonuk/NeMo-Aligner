@@ -36,7 +36,7 @@ from nemo_aligner.utils.ppo_utils import (
 from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
 from nemo_aligner.utils.utils import clear_memory, cpu_dict, masked_mean
-from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
+from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_loose
 import time
 
 
@@ -217,7 +217,7 @@ class ReinforceIFEvalTrainer:
             kwargs=args["instruction_kwargs"]
         )
 
-        output = test_instruction_following_strict(example, {prompt:response.replace("<extra_id_1>", "")})
+        output = test_instruction_following_loose(example, {prompt:response.replace("<extra_id_1>", "")})
         return int(output.follow_all_instructions)
     
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
