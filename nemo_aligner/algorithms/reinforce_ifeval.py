@@ -63,6 +63,7 @@ class ReinforceIFEvalTrainer:
         run_timer,
         generation_iter,
         duplicate_prompts,
+        rm_critic,
     ):
         self.cfg = cfg
         self.model = model
@@ -74,6 +75,7 @@ class ReinforceIFEvalTrainer:
         self.ckpt_callback = ckpt_callback
         self.generation_iter = generation_iter
         self.duplicate_prompts = duplicate_prompts
+        self.rm_critic = rm_critic
 
         # this timer checks if we should stop training
         self.run_timer = run_timer
@@ -93,8 +95,8 @@ class ReinforceIFEvalTrainer:
         self.rollout_batch_seq_length = self.cfg.rollout_batch_seq_length
 
         # for wandb table
-        self.train_df = pd.DataFrame(columns=["step", "prompt", "response", "reward"])
-        self.val_df = pd.DataFrame(columns=["step", "prompt", "response", "reward"])
+        self.train_df = pd.DataFrame(columns=["step", "prompt", "response", "reward", "rm_reward", "ifeval_reward"])
+        self.val_df = pd.DataFrame(columns=["step", "prompt", "response", "reward", "rm_reward", "ifeval_reward"])
 
         self.timer = SyncTimer(
             reduction="mean", sync_cuda=True, buffer_size=1, reduce_op=torch.distributed.ReduceOp.MAX
@@ -184,10 +186,13 @@ class ReinforceIFEvalTrainer:
         output = test_instruction_following_strict(example, {prompt:response})
         return float(all(output.follow_instruction_list))
     
+    def task_mask(self, args, device):
+        mask = torch.tensor([1 if arg["task"] == "ifeval" else 0 for arg in args], device=device)
+        return mask.unsqueeze(-1)
+    
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
         """
-        print("RUNNING INFERENCE")
         rollout_batches = []
         if not is_validation:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
@@ -219,23 +224,36 @@ class ReinforceIFEvalTrainer:
                         current_batch["response_lengths"] = torch.concatenate([current_batch["response_lengths"], rollout_batch["response_lengths"]], dim=0)
                         current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
-                    print("COMPUTING REWARDS")
-                    rewards = []
+                    
+                    ifeval_rewards = []
                     for i in range(rollout_batch["response_tokens"].size(0)):
                         prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                         response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
-                        rewards.append(self.ifeval_rewards(prompt, response, args_duplicated[i]))
+                       
+                        if args_duplicated[i]["task"] == "ifeval":
+                            ifeval_rewards.append(self.ifeval_rewards(prompt, response, args_duplicated[i]))
+                        else:
+                            ifeval_rewards.append(0)
 
+                    
 
-                    rewards = torch.tensor(rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
+                    ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
+                    ifeval_mask = self.task_mask(args_duplicated, device=rollout_batch["logprobs"].device)
+                    print(ifeval_rewards, ifeval_mask)
+                    rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
+                    rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards 
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
-                    print(" REWARDS", rewards)
+
                     if "rewards" in current_batch:
                         current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
+                        current_batch["rm_rewards"] = torch.concatenate([current_batch["rm_rewards"], rm_rewards], dim=0)
+                        current_batch["ifeval_rewards"] = torch.concatenate([current_batch["ifeval_rewards"], ifeval_rewards], dim=0)
                         current_batch["init_logprobs"], _ = pad_batch(current_batch["init_logprobs"], init_policy_logprobs, 0)
                         current_batch["init_logprobs"] = torch.concatenate([current_batch["init_logprobs"], init_policy_logprobs], dim=0)
                     else:
                         current_batch["rewards"] = rewards
+                        current_batch["rm_rewards"] = rm_rewards
+                        current_batch["ifeval_rewards"] = ifeval_rewards
                         current_batch["init_logprobs"] = init_policy_logprobs
 
                 # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
@@ -258,21 +276,30 @@ class ReinforceIFEvalTrainer:
                     current_batch["baseline"] = torch.zeros_like(current_batch["rewards"])
 
                 rollout_batches.append(current_batch)
-                print("DID ROLLOUT BATCH")
 
         else:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
                 
-                # rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
-                rewards = []
+                
+                ifeval_rewards = []
                 for i in range(rollout_batch["response_tokens"].size(0)):
                     prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
                     response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
-                    rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
 
-                rewards = torch.tensor(rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
+                    if inference_batch["args"][i]["task"] == "ifeval":
+                        ifeval_rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
+                    else:
+                        ifeval_rewards.append(0)
+
+                ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
+                ifeval_mask = self.task_mask(inference_batch["args"], device=rollout_batch["logprobs"].device)
+                rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
+                rewards = ifeval_mask * ifeval_rewards +  (1 - ifeval_mask) * rm_rewards
+                print(ifeval_rewards, ifeval_mask)
                 rollout_batch["rewards"] = rewards
+                rollout_batch["rm_rewards"] = rm_rewards
+                rollout_batch["ifeval_rewards"] = ifeval_rewards
                 rollout_batches.append(rollout_batch)
         
         clear_memory()
@@ -289,14 +316,22 @@ class ReinforceIFEvalTrainer:
             response_tokens = rollout_batch["response_tokens"]
             rewards = rollout_batch["rewards"]
 
+            rm_rewards = rollout_batch["rm_rewards"]
+            ifeval_rewards = rollout_batch["ifeval_rewards"]
+
             # table logging
             if i == 0:
                 reward = rewards[0]
+                rm_reward = rm_rewards[0]
+                ifeval_reward = ifeval_rewards[0]
                 prompt_length = prompt_lengths[0]
                 response_length = response_lengths[0]
                 response_token = response_tokens[0]
 
                 table["reward"] = reward.item()
+                table["rm_reward"] = rm_reward.item()
+                table["ifeval_reward"] = ifeval_reward.item()
+
                 table["prompt"] = self.model.tokenizer.ids_to_text(response_token[:prompt_length].tolist())
                 table["response"] = self.model.tokenizer.ids_to_text(
                     response_token[prompt_length:response_length].tolist()
@@ -305,10 +340,12 @@ class ReinforceIFEvalTrainer:
             metrics["response_lengths"] += (response_lengths - prompt_lengths).sum()
             metrics["prompt_lengths"] += prompt_lengths.sum()
             metrics["rewards"] += rewards.sum()
+            metrics["rm_rewards"] += rm_rewards.sum()
+            metrics["ifeval_rewards"] += float(ifeval_rewards.sum())
             num_samples += prompt_lengths.size(0)
 
         tensor_to_accumulate = torch.tensor(
-            [metrics["response_lengths"], metrics["prompt_lengths"], metrics["rewards"], num_samples],
+            [metrics["response_lengths"], metrics["prompt_lengths"], metrics["rewards"], metrics["rm_rewards"], metrics["ifeval_rewards"], num_samples],
             dtype=torch.float32,
             device=torch.cuda.current_device(),
         )
@@ -318,6 +355,8 @@ class ReinforceIFEvalTrainer:
             global_response_lengths,
             global_prompt_lengths,
             global_rewards,
+            global_rm_rewards,
+            global_ifeval_rewards,
             global_num_samples,
         ) = tensor_to_accumulate.tolist()
 
@@ -326,6 +365,8 @@ class ReinforceIFEvalTrainer:
             "global_response_lengths_mean": global_response_lengths / global_num_samples,
             "global_prompt_lengths": global_prompt_lengths / global_num_samples,
             "global_rewards": global_rewards / global_num_samples,
+            "global_rm_rewards": global_rm_rewards / global_num_samples,
+            "global_ifeval_rewards": global_ifeval_rewards / global_num_samples,
         }
 
         return metrics
@@ -348,7 +389,6 @@ class ReinforceIFEvalTrainer:
 
 
         rollout_batches, rollout_metrics = self._run_inference(dataloader_iter, num_microbatches, is_validation=False)
-        print("FINISHED INFERENCE")
         reinforce_rollout_data, reinforce_rollout_metrics = map(cpu_dict, self.generate_reinforce_data(rollout_batches))
 
         self.model.finish_inference()
@@ -448,6 +488,8 @@ class ReinforceIFEvalTrainer:
                     table_metrics["prompt"],
                     table_metrics["response"],
                     table_metrics["reward"],
+                    table_metrics["rm_reward"],
+                    table_metrics["ifeval_reward"],
                 ]
                 metrics["epoch"] = self.epoch + 1
                 self.logger.log_metrics(
@@ -464,9 +506,7 @@ class ReinforceIFEvalTrainer:
                 # start training
                 clear_memory()
                 self.timer.start("train_time")
-                print("RUNNING TRAINING")
                 self.run_training(rollout_dataloader_iter)
-                print("Finished TRAINING")
                 self.timer.stop("train_time")
                 timing_metrics["train_time"] = self.timer.get("train_time")
 
@@ -495,6 +535,8 @@ class ReinforceIFEvalTrainer:
                         val_table_metrics["prompt"],
                         val_table_metrics["response"],
                         val_table_metrics["reward"],
+                        val_table_metrics["rm_reward"],
+                        val_table_metrics["ifeval_reward"],
                     ]
                     self.logger.log_metrics(val_metrics, step=self.step, prefix="val_rollouts/")
                     self.logger.log_table("table/val_rollouts", dataframe=self.val_df, step=self.step)
