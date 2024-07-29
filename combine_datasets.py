@@ -52,4 +52,27 @@ with open("data/llama3_combined_val_data.jsonl", "w") as f:
         jsonline = json.dumps(data)
         f.write(jsonline + "\n")
 
+with open("data/llama3_ifeval_train_data.jsonl", "w") as f:
+    for data in ifeval[128:]:
+        jsonline = json.dumps(data)
+        f.write(jsonline + "\n")
+
+with open("data/llama3_ifeval_val_data.jsonl", "w") as f:
+    for data in ifeval[:128]:
+        jsonline = json.dumps(data)
+        f.write(jsonline + "\n")
+
+with open("data/llama3_chat_train_data.jsonl", "w") as f:
+    for data in preference[128:]:
+        jsonline = json.dumps(data)
+        f.write(jsonline + "\n")
+
+with open("data/llama3_chat_val_data.jsonl", "w") as f:
+    for data in preference[:128]:
+        jsonline = json.dumps(data)
+        f.write(jsonline + "\n")
+
+
+
+
 print(len(train), len(val))
