@@ -1,7 +1,7 @@
 import json
 import random
 
-datalist = []
+preference = []
 with open("data/preference.rm9200.reject-rand-chosen-min-0.0.jsonl", "r") as f:
     for line in f:
         data = json.loads(line)
@@ -14,9 +14,9 @@ with open("data/preference.rm9200.reject-rand-chosen-min-0.0.jsonl", "r") as f:
 
 """.format(text=text)
         data["args"] = {"task":"reward_model"}
-        datalist.append(data)
+        preference.append(data)
 
-
+ifeval = []
 with open("data/ifeval_preferences.jsonl", "r") as f:
     for line in f:
         data = json.loads(line)
@@ -31,21 +31,25 @@ with open("data/ifeval_preferences.jsonl", "r") as f:
         data["args"]["task"] = "ifeval"
         if data["args"]["instruction_kwargs"][0] is None:
             data["args"]["instruction_kwargs"] = [{}]
-        datalist.append(data)
+        ifeval.append(data)
 
 
 
 random.seed(0)
-random.shuffle(datalist)
+random.shuffle(preference)
+random.shuffle(ifeval)
+
+train = preference[128:] + ifeval[128:]
+val = preference[:128] + ifeval[:128]
 
 with open("data/llama3_combined_train_data.jsonl", "w") as f:
-    for data in datalist[128:]:
+    for data in train:
         jsonline = json.dumps(data)
         f.write(jsonline + "\n")
 
 with open("data/llama3_combined_val_data.jsonl", "w") as f:
-    for data in datalist[:128]:
+    for data in val:
         jsonline = json.dumps(data)
         f.write(jsonline + "\n")
 
-print(len(datalist))
+print(len(train), len(val))

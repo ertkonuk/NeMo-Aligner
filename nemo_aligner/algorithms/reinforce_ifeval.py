@@ -241,7 +241,7 @@ class ReinforceIFEvalTrainer:
                     ifeval_mask = self.task_mask(args_duplicated, device=rollout_batch["logprobs"].device)
                     print(ifeval_rewards, ifeval_mask)
                     rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
-                    rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards 
+                    rewards = self.cfg.lam * (1 - ifeval_mask) * rm_rewards + (1-self.cfg.lam) * ifeval_mask * ifeval_rewards 
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
                     if "rewards" in current_batch:
@@ -252,8 +252,8 @@ class ReinforceIFEvalTrainer:
                         current_batch["init_logprobs"] = torch.concatenate([current_batch["init_logprobs"], init_policy_logprobs], dim=0)
                     else:
                         current_batch["rewards"] = rewards
-                        current_batch["rm_rewards"] = rm_rewards
-                        current_batch["ifeval_rewards"] = ifeval_rewards
+                        current_batch["rm_rewards"] = rm_rewards / (1 - ifeval_mask.mean() + 1e-3)
+                        current_batch["ifeval_rewards"] = ifeval_rewards / (ifeval_mask.mean() + 1e-3)
                         current_batch["init_logprobs"] = init_policy_logprobs
 
                 # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
@@ -296,10 +296,10 @@ class ReinforceIFEvalTrainer:
                 ifeval_mask = self.task_mask(inference_batch["args"], device=rollout_batch["logprobs"].device)
                 rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
                 rewards = ifeval_mask * ifeval_rewards +  (1 - ifeval_mask) * rm_rewards
-                print(ifeval_rewards, ifeval_mask)
+                
                 rollout_batch["rewards"] = rewards
-                rollout_batch["rm_rewards"] = rm_rewards
-                rollout_batch["ifeval_rewards"] = ifeval_rewards
+                rollout_batch["rm_rewards"] = rm_rewards / (1- ifeval_mask.mean() + 1e-3)
+                rollout_batch["ifeval_rewards"] = ifeval_rewards / (ifeval_mask.mean() + 1e-3)
                 rollout_batches.append(rollout_batch)
         
         clear_memory()
