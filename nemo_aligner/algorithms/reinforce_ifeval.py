@@ -187,8 +187,8 @@ class ReinforceIFEvalTrainer:
         return float(all(output.follow_instruction_list))
     
     def task_mask(self, args, device):
-        mask = torch.tensor([1 if arg["task"] == "ifeval" else 0 for arg in args], device=device)
-        return mask.unsqueeze(-1)
+        mask = torch.tensor([1 if arg["task"] == "ifeval" else 0 for arg in args], device=device).float()
+        return mask.unsqueeze(-1) / mask.mean()
     
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
@@ -237,9 +237,10 @@ class ReinforceIFEvalTrainer:
 
                     
 
-                    ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
+                    
                     ifeval_mask = self.task_mask(args_duplicated, device=rollout_batch["logprobs"].device)
-                    print(ifeval_rewards, ifeval_mask)
+                    ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
+                    
                     rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
                     rewards = self.cfg.lam * (1 - ifeval_mask) * rm_rewards + (1-self.cfg.lam) * ifeval_mask * ifeval_rewards 
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
@@ -252,8 +253,8 @@ class ReinforceIFEvalTrainer:
                         current_batch["init_logprobs"] = torch.concatenate([current_batch["init_logprobs"], init_policy_logprobs], dim=0)
                     else:
                         current_batch["rewards"] = rewards
-                        current_batch["rm_rewards"] = rm_rewards / (1 - ifeval_mask.float().mean() + 1e-3)
-                        current_batch["ifeval_rewards"] = ifeval_rewards / (ifeval_mask.float().mean() + 1e-3)
+                        current_batch["rm_rewards"] = rm_rewards 
+                        current_batch["ifeval_rewards"] = ifeval_rewards 
                         current_batch["init_logprobs"] = init_policy_logprobs
 
                 # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
@@ -291,15 +292,16 @@ class ReinforceIFEvalTrainer:
                         ifeval_rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
                     else:
                         ifeval_rewards.append(0)
+                ifeval_mask = self.task_mask(inference_batch["args"], device=rollout_batch["logprobs"].device)
 
                 ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
-                ifeval_mask = self.task_mask(inference_batch["args"], device=rollout_batch["logprobs"].device)
                 rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
+
                 rewards = ifeval_mask * ifeval_rewards +  (1 - ifeval_mask) * rm_rewards
                 
                 rollout_batch["rewards"] = rewards
-                rollout_batch["rm_rewards"] = rm_rewards / (1- ifeval_mask.float().mean() + 1e-3)
-                rollout_batch["ifeval_rewards"] = ifeval_rewards / (ifeval_mask.float().mean() + 1e-3)
+                rollout_batch["rm_rewards"] = rm_rewards
+                rollout_batch["ifeval_rewards"] = ifeval_rewards
                 rollout_batches.append(rollout_batch)
         
         clear_memory()
