@@ -242,7 +242,7 @@ class ReinforceIFEvalTrainer:
                     ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
                     
                     rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
-                    rewards = self.cfg.lam * (1 - ifeval_mask) * rm_rewards + (1-self.cfg.lam) * ifeval_mask * ifeval_rewards 
+                    rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards 
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
                     if "rewards" in current_batch:
@@ -297,7 +297,7 @@ class ReinforceIFEvalTrainer:
                 ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
                 rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
 
-                rewards = ifeval_mask * ifeval_rewards +  (1 - ifeval_mask) * rm_rewards
+                rewards = ifeval_mask * ifeval_rewards + (1 - ifeval_mask) * rm_rewards
                 
                 rollout_batch["rewards"] = rewards
                 rollout_batch["rm_rewards"] = rm_rewards
