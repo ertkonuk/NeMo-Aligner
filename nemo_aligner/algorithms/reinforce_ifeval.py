@@ -252,8 +252,8 @@ class ReinforceIFEvalTrainer:
                         current_batch["init_logprobs"] = torch.concatenate([current_batch["init_logprobs"], init_policy_logprobs], dim=0)
                     else:
                         current_batch["rewards"] = rewards
-                        current_batch["rm_rewards"] = rm_rewards / (1 - ifeval_mask.mean() + 1e-3)
-                        current_batch["ifeval_rewards"] = ifeval_rewards / (ifeval_mask.mean() + 1e-3)
+                        current_batch["rm_rewards"] = rm_rewards / (1 - ifeval_mask.float().mean() + 1e-3)
+                        current_batch["ifeval_rewards"] = ifeval_rewards / (ifeval_mask.float().mean() + 1e-3)
                         current_batch["init_logprobs"] = init_policy_logprobs
 
                 # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
@@ -298,8 +298,8 @@ class ReinforceIFEvalTrainer:
                 rewards = ifeval_mask * ifeval_rewards +  (1 - ifeval_mask) * rm_rewards
                 
                 rollout_batch["rewards"] = rewards
-                rollout_batch["rm_rewards"] = rm_rewards / (1- ifeval_mask.mean() + 1e-3)
-                rollout_batch["ifeval_rewards"] = ifeval_rewards / (ifeval_mask.mean() + 1e-3)
+                rollout_batch["rm_rewards"] = rm_rewards / (1- ifeval_mask.float().mean() + 1e-3)
+                rollout_batch["ifeval_rewards"] = ifeval_rewards / (ifeval_mask.float().mean() + 1e-3)
                 rollout_batches.append(rollout_batch)
         
         clear_memory()
