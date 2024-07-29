@@ -188,7 +188,7 @@ class ReinforceIFEvalTrainer:
     
     def task_mask(self, args, device):
         mask = torch.tensor([1 if arg["task"] == "ifeval" else 0 for arg in args], device=device).float()
-        return mask.unsqueeze(-1) / mask.mean()
+        return mask.unsqueeze(-1)
     
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
