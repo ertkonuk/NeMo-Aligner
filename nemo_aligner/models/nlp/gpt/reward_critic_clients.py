@@ -283,8 +283,7 @@ class RemoteGPTMultitaskClient:
         # while not queue.empty():
         #     # ifeval_rewards.append(self.ifeval_rewards(prompt, response, args[i]))
         #     ifeval_rewards.append(queue.get())
-
-        print(ifeval_rewards)
+        
         ifeval_mask = self.task_mask(args, device=rollout_batch["logprobs"].device)
         ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
 

@@ -222,7 +222,7 @@ class ReinforceIFEvalTrainer:
                     
                     future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, args_duplicated)
                     rm_rewards = future.result().detach()
-                    rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards 
+                    rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards * self.cfg.ifeval_multiplier
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
                     if "rewards" in current_batch:
@@ -265,7 +265,7 @@ class ReinforceIFEvalTrainer:
                 future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, inference_batch["args"])
                 rm_rewards = future.result().detach()
 
-                rewards = ifeval_mask * ifeval_rewards + (1 - ifeval_mask) * rm_rewards
+                rewards = self.cfg.ifeval_multiplier * ifeval_mask * ifeval_rewards + (1 - ifeval_mask) * rm_rewards
                 
                 rollout_batch["rewards"] = rewards
                 rollout_batch["rm_rewards"] = rm_rewards
