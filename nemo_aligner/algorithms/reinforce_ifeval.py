@@ -175,20 +175,9 @@ class ReinforceIFEvalTrainer:
             batch["baseline"][prompt_idx] = rloo
         return batch
 
-    def ifeval_rewards(self, prompt, response, args):
-        example = InputExample(
-            key="",
-            instruction_id_list=args["instruction_id_list"],
-            prompt=prompt,
-            kwargs=args["instruction_kwargs"]
-        )
-
-        output = test_instruction_following_strict(example, {prompt:response})
-        return float(all(output.follow_instruction_list))
     
-    def task_mask(self, args, device):
-        mask = torch.tensor([1 if arg["task"] == "ifeval" else 0 for arg in args], device=device).float()
-        return mask.unsqueeze(-1)
+    
+    
     
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
@@ -225,23 +214,14 @@ class ReinforceIFEvalTrainer:
                         current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
                     
-                    ifeval_rewards = []
-                    for i in range(rollout_batch["response_tokens"].size(0)):
-                        prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
-                        response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
-                       
-                        if args_duplicated[i]["task"] == "ifeval":
-                            ifeval_rewards.append(self.ifeval_rewards(prompt, response, args_duplicated[i]))
-                        else:
-                            ifeval_rewards.append(0)
 
                     
 
                     
-                    ifeval_mask = self.task_mask(args_duplicated, device=rollout_batch["logprobs"].device)
-                    ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
                     
-                    rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
+                    
+                    future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, args_duplicated)
+                    rm_rewards = future.result().detach()
                     rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards 
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
@@ -282,20 +262,8 @@ class ReinforceIFEvalTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
                 
-                
-                ifeval_rewards = []
-                for i in range(rollout_batch["response_tokens"].size(0)):
-                    prompt = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
-                    response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
-
-                    if inference_batch["args"][i]["task"] == "ifeval":
-                        ifeval_rewards.append(self.ifeval_rewards(prompt, response, inference_batch["args"][i]))
-                    else:
-                        ifeval_rewards.append(0)
-                ifeval_mask = self.task_mask(inference_batch["args"], device=rollout_batch["logprobs"].device)
-
-                ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
-                rm_rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()
+                future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, inference_batch["args"])
+                rm_rewards = future.result().detach()
 
                 rewards = ifeval_mask * ifeval_rewards + (1 - ifeval_mask) * rm_rewards
                 

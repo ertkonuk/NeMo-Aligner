@@ -21,7 +21,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 from nemo_aligner.algorithms.reinforce_ifeval import ReinforceIFEvalTrainer
-from nemo_aligner.models.nlp.gpt.reward_critic_clients import RemoteGPTRMClient
+from nemo_aligner.models.nlp.gpt.reward_critic_clients import RemoteGPTMultitaskClient
 from nemo_aligner.data.nlp.builders import (
     build_dataloader,
     build_train_valid_test_ifeval_datasets,
@@ -163,7 +163,7 @@ def main(cfg) -> None:
 
     logger.log_hyperparams(OmegaConf.to_container(cfg))
 
-    rm_critic = RemoteGPTRMClient(cfg.remote_critic_rm)
+    rm_critic = RemoteGPTMultitaskClient(cfg.remote_critic_rm)
     timer = Timer(cfg.exp_manager.get("max_time_per_run"))
 
     reinforce_trainer = ReinforceIFEvalTrainer(

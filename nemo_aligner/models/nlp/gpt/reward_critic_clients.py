@@ -23,6 +23,8 @@ from nemo_aligner.servers.http_communicator import HTTPCommunicator
 from nemo_aligner.utils import parallel_state
 from nemo_aligner.utils.distributed import broadcast_2d_tensor_within_mp, gather_tensor, run_if_model_parallel_src
 from nemo_aligner.utils.server_utils import FutureResult
+from multiprocessing import Queue, Process
+from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
 
 """A remote client that acts like a real Reward Model and Critic forwards all requests from the actor
     over to the remote PyTrition server
@@ -119,9 +121,11 @@ class RemoteGPTRMCriticClient:
         self.combine_rm_and_critic_server = self.cfg.combine_rm_and_critic_server
         self.pad_to_length = self.cfg.pad_to_length
 
-    def infer_rm_critic(self, rollout_batch):
+    def infer_rm_critic(self, rollout_batch, model, args):
         response_tokens = rollout_batch["response_tokens"].cpu()
         og_seq_length = response_tokens.size(-1)
+
+        
 
         if self.pad_to_length is not None:
             assert (
@@ -198,6 +202,7 @@ class RemoteGPTRMClient:
 
     def infer_rm_critic(self, rollout_batch):
         response_tokens = rollout_batch["response_tokens"].cpu()
+        
         og_seq_length = response_tokens.size(-1)
 
         if self.pad_to_length is not None:
@@ -218,3 +223,86 @@ class RemoteGPTRMClient:
         )
 
         return RMFutureResult(rm_future)
+
+
+@dataclass
+class RemoteGPTMultitaskClient:
+    cfg: DictConfig
+
+    def __post_init__(self):
+        cfg = self.cfg
+
+        server_dict = {cfg.reward_model.name: (cfg.reward_model.ip, cfg.reward_model.port)}
+
+        self.communicator = HTTPCommunicator.create_http_communicator_from_dict(server_dict)
+        self.communicator.print_server_dict()
+        self.combine_rm_and_critic_server = self.cfg.combine_rm_and_critic_server
+        self.pad_to_length = self.cfg.pad_to_length
+    
+    def ifeval_rewards(self, prompt, response, args):
+        if args["task"] != "ifeval":
+            return 0
+        
+        example = InputExample(
+            key="",
+            instruction_id_list=args["instruction_id_list"],
+            prompt=prompt,
+            kwargs=args["instruction_kwargs"]
+        )
+
+        output = test_instruction_following_strict(example, {prompt:response})
+        # queue.put(float(all(output.follow_instruction_list)))
+        return float(all(output.follow_instruction_list))
+    
+    def task_mask(self, args, device):
+        mask = torch.tensor([1 if arg["task"] == "ifeval" else 0 for arg in args], device=device).float()
+        return mask.unsqueeze(-1)
+
+    def infer_rm_critic(self, rollout_batch, model, args):
+        response_tokens = rollout_batch["response_tokens"].cpu()
+        og_seq_length = response_tokens.size(-1)
+
+        #########################
+        #      Get IFeval
+        #########################
+
+        queue = Queue()
+        processes = []
+        ifeval_rewards = []
+        for i in range(rollout_batch["response_tokens"].size(0)):
+            prompt = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
+            response = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
+            ifeval_rewards.append(self.ifeval_rewards(prompt, response, args[i]))
+        #     p = Process(target=self.ifeval_rewards, args=(prompt, response, args[i], queue))
+        #     processes.append(p)
+        #     p.start()
+        
+        # for p in processes:
+        #     p.join()
+        
+        # while not queue.empty():
+        #     # ifeval_rewards.append(self.ifeval_rewards(prompt, response, args[i]))
+        #     ifeval_rewards.append(queue.get())
+
+        print(ifeval_rewards)
+        ifeval_mask = self.task_mask(args, device=rollout_batch["logprobs"].device)
+        ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
+
+        if self.pad_to_length is not None:
+            assert (
+                og_seq_length <= self.pad_to_length
+            ), f"original shape before padding {og_seq_length} is higher than {self.pad_to_length}"
+            response_tokens = torch.nn.functional.pad(
+                response_tokens, (0, self.pad_to_length - response_tokens.size(-1)), value=0
+            )
+
+        send_data = {
+            "tokens": response_tokens.numpy(),
+            "sequence_lengths": rollout_batch["response_lengths"].unsqueeze(1).cpu().numpy(),
+        }
+
+        rm_future = run_if_model_parallel_src(
+            self.communicator.send_data_to_server, server_name=self.cfg.reward_model.name, data=send_data
+        )
+
+        return RMFutureResult(rm_future), ifeval_rewards, ifeval_mask
