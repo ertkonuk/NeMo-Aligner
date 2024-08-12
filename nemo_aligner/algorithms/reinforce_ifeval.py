@@ -36,7 +36,6 @@ from nemo_aligner.utils.ppo_utils import (
 from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
 from nemo_aligner.utils.utils import clear_memory, cpu_dict
-from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
 
 
 def compute_num_rollout_microbatches(dataloader):

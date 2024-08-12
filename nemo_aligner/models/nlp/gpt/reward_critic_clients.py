@@ -266,23 +266,12 @@ class RemoteGPTMultitaskClient:
         #      Get IFeval
         #########################
 
-        queue = Queue()
-        processes = []
+
         ifeval_rewards = []
         for i in range(rollout_batch["response_tokens"].size(0)):
             prompt = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
             response = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
             ifeval_rewards.append(self.ifeval_rewards(prompt, response, args[i]))
-        #     p = Process(target=self.ifeval_rewards, args=(prompt, response, args[i], queue))
-        #     processes.append(p)
-        #     p.start()
-        
-        # for p in processes:
-        #     p.join()
-        
-        # while not queue.empty():
-        #     # ifeval_rewards.append(self.ifeval_rewards(prompt, response, args[i]))
-        #     ifeval_rewards.append(queue.get())
         
         ifeval_mask = self.task_mask(args, device=rollout_batch["logprobs"].device)
         ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
