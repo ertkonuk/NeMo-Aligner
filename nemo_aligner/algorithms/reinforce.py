@@ -256,7 +256,10 @@ class ReinforceTrainer:
                     else:
                         current_batch["rewards"] = rewards
                         current_batch["init_logprobs"] = init_policy_logprobs
-
+                    response = self.model.tokenizer.ids_to_text(rollout_batch["response_tokens"][0, :rollout_batch["response_lengths"][0]].tolist())
+                    print("-" * 50)
+                    print(response)
+                    print("-" * 50)
                 # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
                 if self.compute_init_policy_kl:
                     init_policy_kl = calculate_kl_penalty(

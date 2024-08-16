@@ -45,6 +45,7 @@ remote_critic_rm:
   # what to batch the inputs to
   # set to None if no batching when sending inference to the critic
   pad_to_length: ${model.encoder_seq_length}
+  end_strings: ${model.reinforce.sampling_params.end_strings}
 
   # must match the same flag in the critic config
   combine_rm_and_critic_server: True

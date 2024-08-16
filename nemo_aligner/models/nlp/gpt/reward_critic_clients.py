@@ -23,7 +23,6 @@ from nemo_aligner.servers.http_communicator import HTTPCommunicator
 from nemo_aligner.utils import parallel_state
 from nemo_aligner.utils.distributed import broadcast_2d_tensor_within_mp, gather_tensor, run_if_model_parallel_src
 from nemo_aligner.utils.server_utils import FutureResult
-from multiprocessing import Queue, Process
 from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
 
 """A remote client that acts like a real Reward Model and Critic forwards all requests from the actor
@@ -271,8 +270,10 @@ class RemoteGPTMultitaskClient:
         for i in range(rollout_batch["response_tokens"].size(0)):
             prompt = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
             response = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
+            for end_string in self.cfg.end_strings:
+                response = response.replace(end_string, "")
             ifeval_rewards.append(self.ifeval_rewards(prompt, response, args[i]))
-        
+            
         ifeval_mask = self.task_mask(args, device=rollout_batch["logprobs"].device)
         ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
 
