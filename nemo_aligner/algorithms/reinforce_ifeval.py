@@ -297,7 +297,7 @@ class ReinforceIFEvalTrainer:
                 response_length = response_lengths[0]
                 response_token = response_tokens[0]
 
-                table["reward"] = reward.item()
+                table["reward"] = rm_reward.item()
                 table["rm_reward"] = rm_reward.item()
                 table["ifeval_reward"] = ifeval_reward.item()
 
@@ -308,7 +308,7 @@ class ReinforceIFEvalTrainer:
 
             metrics["response_lengths"] += (response_lengths - prompt_lengths).sum()
             metrics["prompt_lengths"] += prompt_lengths.sum()
-            metrics["rewards"] += rewards.sum()
+            metrics["rewards"] += rm_rewards.sum()
             metrics["rm_rewards"] += rm_rewards.sum()
             metrics["ifeval_rewards"] += float(ifeval_rewards.sum())
             num_samples += prompt_lengths.size(0)
@@ -520,8 +520,8 @@ class ReinforceIFEvalTrainer:
 
                 if save_model:
                     step_metrics = {k: torch.as_tensor(v) for k, v in step_metrics.items()}
-                    # self.save(step_metrics, is_train_end=is_train_end)
-                    self.save(is_train_end=is_train_end)
+                    self.save(step_metrics, is_train_end=is_train_end)
+                    #self.save(is_train_end=is_train_end)
 
                 if run_time_exceeded:
                     logging.info(f"Time limit given by run_timer={self.run_timer} reached. Stopping run")
