@@ -261,7 +261,7 @@ class RemoteGPTMultitaskClient:
     
     def gsm8k_rewards(self, prompt, response, args):
         ans = args["answer"]
-        pattern = r"-?\$?\d[\d,]*(\.\d+)?"
+        pattern = r"-?\$?\d[\d,]*\.?\d*|-?\.\d+"
         matches = re.findall(pattern, response)
         # print(prompt, response, matches, ans)
         if matches:
