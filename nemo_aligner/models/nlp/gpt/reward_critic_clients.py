@@ -263,7 +263,7 @@ class RemoteGPTMultitaskClient:
         ans = args["answer"]
         pattern = r"-?[$0-9.,]{2,}|-?[0-9]+"
         matches = re.findall(pattern, response)
-        print(prompt, response, matches, ans)
+        # print(prompt, response, matches, ans)
         if matches:
             prediction = float(matches[-1].replace('$', '').replace(',', ''))
             return int(prediction == ans)
@@ -284,7 +284,6 @@ class RemoteGPTMultitaskClient:
             response = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
             for end_string in self.cfg.end_strings:
                 response = response.replace(end_string, "")
-            response = "The answer is 6"
             ifeval_rewards.append(self.task_reward(prompt, response, args[i]))
             
         ifeval_mask = self.task_mask(args, device=rollout_batch["logprobs"].device)
