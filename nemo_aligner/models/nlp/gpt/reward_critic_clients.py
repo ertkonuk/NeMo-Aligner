@@ -24,7 +24,7 @@ from nemo_aligner.utils import parallel_state
 from nemo_aligner.utils.distributed import broadcast_2d_tensor_within_mp, gather_tensor, run_if_model_parallel_src
 from nemo_aligner.utils.server_utils import FutureResult
 from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
-
+import re
 """A remote client that acts like a real Reward Model and Critic forwards all requests from the actor
     over to the remote PyTrition server
 """
@@ -239,8 +239,6 @@ class RemoteGPTMultitaskClient:
         self.pad_to_length = self.cfg.pad_to_length
     
     def ifeval_rewards(self, prompt, response, args):
-        if args["task"] != "ifeval":
-            return 0
         
         example = InputExample(
             key="",
@@ -253,18 +251,29 @@ class RemoteGPTMultitaskClient:
         # queue.put(float(all(output.follow_instruction_list)))
         return float(all(output.follow_instruction_list))
     
+    def task_reward(self, prompt, response, args):
+        if args["task"] == "ifeval":
+            return self.ifeval_rewards(prompt, response, args)
+        elif args["task"] == "gsm8k":
+            return self.gsm8k_rewards(response, args)
+    
+    def gsm8k_rewards(self, response, args):
+        ans = args["answer"]
+        pattern = r"-?[$0-9.,]{2,}|-?[0-9]+"
+        matches = re.findall(pattern, response)
+        if matches:
+            prediction = float(matches[-1].replace('$', '').replace(',', ''))
+            return int(prediction == ans)
+        else:
+            return 0
+    
     def task_mask(self, args, device):
-        mask = torch.tensor([1 if arg["task"] == "ifeval" else 0 for arg in args], device=device).float()
+        mask = torch.tensor([1 if arg["task"] in ["ifeval", "gsm8k"] else 0 for arg in args], device=device).float()
         return mask.unsqueeze(-1)
 
     def infer_rm_critic(self, rollout_batch, model, args):
         response_tokens = rollout_batch["response_tokens"].cpu()
         og_seq_length = response_tokens.size(-1)
-
-        #########################
-        #      Get IFeval
-        #########################
-
 
         ifeval_rewards = []
         for i in range(rollout_batch["response_tokens"].size(0)):
@@ -272,7 +281,8 @@ class RemoteGPTMultitaskClient:
             response = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
             for end_string in self.cfg.end_strings:
                 response = response.replace(end_string, "")
-            ifeval_rewards.append(self.ifeval_rewards(prompt, response, args[i]))
+            response = "The answer is 6"
+            ifeval_rewards.append(self.task_reward(prompt, response, args[i]))
             
         ifeval_mask = self.task_mask(args, device=rollout_batch["logprobs"].device)
         ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
