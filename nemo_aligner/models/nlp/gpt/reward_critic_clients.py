@@ -255,12 +255,15 @@ class RemoteGPTMultitaskClient:
         if args["task"] == "ifeval":
             return self.ifeval_rewards(prompt, response, args)
         elif args["task"] == "gsm8k":
-            return self.gsm8k_rewards(response, args)
+            return self.gsm8k_rewards(prompt, response, args)
+        else:
+            return 0
     
-    def gsm8k_rewards(self, response, args):
+    def gsm8k_rewards(self, prompt, response, args):
         ans = args["answer"]
         pattern = r"-?[$0-9.,]{2,}|-?[0-9]+"
         matches = re.findall(pattern, response)
+        print(prompt, response, matches, ans)
         if matches:
             prediction = float(matches[-1].replace('$', '').replace(',', ''))
             return int(prediction == ans)
