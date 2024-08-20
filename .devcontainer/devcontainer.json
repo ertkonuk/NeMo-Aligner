@@ -11,7 +11,8 @@
                 "eamodio.gitlens",
                 "ms-azuretools.vscode-docker",
                 "ms-python.python",
-                "usernamehw.errorlens"
+                "usernamehw.errorlens",
+                "ms-python.debugpy"
             ]
         }
     },
