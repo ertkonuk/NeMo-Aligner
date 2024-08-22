@@ -16,6 +16,7 @@ import enum
 
 from nemo_aligner.models.nlp.gpt.megatron_gpt_regression_reward_model import MegatronGPTRegressionRewardModel
 from nemo_aligner.models.nlp.gpt.megatron_gpt_reward_model import MegatronGPTRewardModel
+from nemo_aligner.models.nlp.gpt.megatron_gpt_regression_ranking_reward_model import MegatronGPTRegressionRankingRewardModel
 
 __all__ = ["RewardModelType", "REWARD_MODEL_CLASS_DICT"]
 
@@ -23,9 +24,11 @@ __all__ = ["RewardModelType", "REWARD_MODEL_CLASS_DICT"]
 class RewardModelType(enum.Enum):
     BINARY_RANKING = "binary_ranking"
     REGRESSION = "regression"
+    REGRESSION_RANKING = "regression_ranking"
 
 
 REWARD_MODEL_CLASS_DICT = {
     RewardModelType.BINARY_RANKING: MegatronGPTRewardModel,
     RewardModelType.REGRESSION: MegatronGPTRegressionRewardModel,
+    RewardModelType.REGRESSION_RANKING: MegatronGPTRegressionRankingRewardModel,
 }

@@ -47,7 +47,8 @@ from nemo_aligner.data.nlp.datasets import (
     RegressionRewardModelDataset,
     RewardModelDataset,
     RLHFDataset,
-    IFEvalDataset
+    IFEvalDataset,
+    RegressionAndRankingRewardModelDataset
 )
 from nemo_aligner.utils.utils import collate_with_batch_max_sequence_length, collate_with_batch_max_sequence_length_and_args
 
@@ -95,6 +96,92 @@ def build_dataset_generic(cls, cfg, data_prefix, data_impl, num_samples, seq_len
             datasets.append(dataset)
         return BlendableDataset(datasets, weights, num_samples)
 
+def build_dataset_regression_ranking(cls, cfg, regression_prefix, ranking_prefix, data_impl, num_samples, seq_length, seed, tokenizer, name):
+    def _build_dataset(regression_prefix, ranking_prefix, current_num_samples):
+        print(regression_prefix, ranking_prefix)
+        if data_impl.startswith("json"):
+            with open(regression_prefix, "r", encoding="utf_8") as fr:
+                regression_payload = [json.loads(line.strip()) for line in fr]
+            with open(ranking_prefix, "r", encoding="utf_8") as fr:
+                ranking_payload = [json.loads(line.strip()) for line in fr]
+        else:
+            raise RuntimeError(f"data.data_impl must be either mmap or json or jsonl, but got {data_impl}")
+        total_num_of_documents = len(regression_payload)
+
+        drop_last = True
+        if name == "valid":
+            drop_last = cfg.data.get("validation_drop_last", True)
+
+        dataset = cls(
+            cfg=cfg,
+            tokenizer=tokenizer,
+            name=name,
+            data_prefix=None,
+            documents=np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32),
+            ranking_data=ranking_payload,
+            regression_data=regression_payload,
+            seq_length=seq_length,
+            seed=seed,
+            drop_last=drop_last,
+        )
+        return dataset
+
+    return _build_dataset(regression_prefix[0], ranking_prefix[0], num_samples)
+    
+
+
+def build_train_valid_test_datasets_regression_and_ranking(
+    cls, cfg, data_prefix, data_impl, splits_string, train_valid_test_num_samples, seq_length, seed, tokenizer,
+):
+    assert (
+        data_prefix.get("train_regression") is not None
+        and data_prefix.get("test_ranking") is not None
+        and data_prefix.get("test_regression") is not None
+        and data_prefix.get("test_ranking") is not None
+        and data_prefix.get("validation_regression") is not None
+        and data_prefix.get("validation_ranking") is not None
+    ), f"Data prefix dictionary should have train, test and validation keys.  data_prefix currently has only {data_prefix.keys()}"
+    if cfg.data.splits_string is not None:
+        logging.warning(cfg.data.splits_string + " ignored since data path is of type dictionary.")
+    train_ds = build_dataset_regression_ranking(
+        cls=cls,
+        cfg=cfg,
+        regression_prefix=data_prefix["train_regression"],
+        ranking_prefix=data_prefix["train_regression"],
+        data_impl=data_impl,
+        num_samples=int(train_valid_test_num_samples[0]),
+        seq_length=seq_length,
+        seed=seed,
+        tokenizer=tokenizer,
+        name="train",
+    )
+
+    validation_ds = build_dataset_regression_ranking(
+        cls=cls,
+        cfg=cfg,
+        regression_prefix=data_prefix["validation_regression"],
+        ranking_prefix=data_prefix["validation_ranking"],
+        data_impl=data_impl,
+        num_samples=int(train_valid_test_num_samples[0]),
+        seq_length=seq_length,
+        seed=seed,
+        tokenizer=tokenizer,
+        name="validation",
+    )
+    test_ds = build_dataset_regression_ranking(
+        cls=cls,
+        cfg=cfg,
+        regression_prefix=data_prefix["test_regression"],
+        ranking_prefix=data_prefix["test_ranking"],
+        data_impl=data_impl,
+        num_samples=int(train_valid_test_num_samples[0]),
+        seq_length=seq_length,
+        seed=seed,
+        tokenizer=tokenizer,
+        name="test",
+    )
+
+    return train_ds, validation_ds, test_ds
 
 def build_train_valid_test_datasets(
     cls, cfg, data_prefix, data_impl, splits_string, train_valid_test_num_samples, seq_length, seed, tokenizer,
@@ -264,6 +351,7 @@ build_train_valid_test_rlhf_datasets = partial(build_train_valid_test_datasets, 
 build_train_valid_test_rm_datasets = partial(build_train_valid_test_datasets, RewardModelDataset)
 build_train_valid_test_dpo_datasets = partial(build_train_valid_test_datasets, DPOModelDataset)
 build_train_valid_test_regression_rm_datasets = partial(build_train_valid_test_datasets, RegressionRewardModelDataset)
+build_train_valid_test_regression_ranking_rm_datasets = partial(build_train_valid_test_datasets_regression_and_ranking, RegressionAndRankingRewardModelDataset)
 
 
 def build_sft_dataset(data_cfg, tokenizer, num_samples, answer_only_loss=True, is_chat=True, special_tokens=None):

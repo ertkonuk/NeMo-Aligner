@@ -240,6 +240,185 @@ class IFEvalDataset(Dataset):
         return output
 
 
+class RegressionAndRankingRewardModelDataset(Dataset):
+    """This class assumes that we only have 2 responses per prompt that is ranked. Chosen is the better
+        one(even index) whereas Rejected is the worse response(odd index)
+    """
+
+    def __init__(
+        self, cfg, tokenizer, name, data_prefix, documents, ranking_data, regression_data, seq_length, seed, drop_last=True,
+    ):
+        super().__init__()
+        self.cfg = cfg
+        self.name = name
+        self.ranking_data = ranking_data
+        self.regression_data = regression_data
+        self.drop_last = drop_last
+        self.seq_length = seq_length
+        self.tokenizer = tokenizer
+
+        self.reset_position_ids = cfg.data.get("reset_position_ids", False)
+        self.reset_attention_mask = cfg.data.get("reset_attention_mask", False)
+        self.eod_mask_loss = cfg.data.get("eod_mask_loss", False)
+        self.eos_id = tokenizer.eos_id
+
+        # Checks
+        # assert np.min(documents) >= 0
+        # assert np.max(documents) < len(self.data)
+
+        # save index mappings to a configurable dir
+        self.index_mapping_dir = cfg.data.get("index_mapping_dir", None)
+
+        # create index_mapping_dir on rank 0
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if torch.distributed.get_rank() == 0:
+                if self.index_mapping_dir is not None and not os.path.isdir(self.index_mapping_dir):
+                    os.makedirs(self.index_mapping_dir)
+            torch.distributed.barrier()
+
+    def __len__(self):
+        return len(self.ranking_data) // 2 + len(self.regression_data)
+
+    def encode(self, text):
+        if self.cfg.data.get("apply_ftfy", False):
+            import ftfy
+
+            text = ftfy.fix_text(text)
+
+        text_ids = self.tokenizer.text_to_ids(text)
+
+        if len(text_ids) > 0 and self.cfg.data.get("append_eod", False):
+            text_ids.append(self.tokenizer.eos_id)
+
+        return text_ids, len(text_ids)
+
+    def __getitem__(self, idx, multiple=2):
+        if idx < len(self.ranking_data) // 2:
+            """Returns a pair of chosen/rejected pairs, and their respective lengths.
+            """
+            found = False
+            while not found:
+                chosen = self.ranking_data[multiple * idx]
+                rejected = self.ranking_data[multiple * idx + 1]
+                if self.cfg.data.data_impl.startswith("json"):
+                    chosen, _ = self.encode(chosen["text"])
+                    rejected, _ = self.encode(rejected["text"])
+                if len(chosen) > self.seq_length or len(rejected) > self.seq_length:
+                    idx += multiple
+                    continue
+                found = True
+
+            # in the future, we should pad to the max seq len of the mini-batch instead of model.seq_length
+            # max_curr_seq_len = max(len(chosen), len(rejected))
+
+            chosen_np = np.array(chosen, dtype=np.int64)
+            chosen_np_pad = np.pad(
+                chosen_np, (0, max(0, self.seq_length - chosen_np.shape[0])), mode="constant", constant_values=self.eos_id
+            )
+            rejected_np = np.array(rejected, dtype=np.int64)
+            rejected_np_pad = np.pad(
+                rejected_np,
+                (0, max(0, self.seq_length - rejected_np.shape[0])),
+                mode="constant",
+                constant_values=self.eos_id,
+            )
+
+            chosen_tokens = torch.tensor(chosen_np_pad)
+            rejected_tokens = torch.tensor(rejected_np_pad)
+
+            attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
+                chosen_tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
+            )
+
+            # Negative index comes when we pad the last batch in MegatronPretrainingBatchSampler
+            # We make the loss_mask zero to mask out loss from these samples
+            if idx == -1:
+                logging.info("WARNING: Got -1 as item index. Masking loss from this sample")
+                loss_mask = torch.zeros_like(loss_mask)
+
+            output = {
+                "inputs": torch.zeros_like(chosen_tokens),
+                "lengths": chosen_np.shape[0],
+                
+                "chosen": chosen_tokens,
+                "rejected": rejected_tokens,
+                "chosen_length": chosen_np.shape[0],
+                "rejected_length": rejected_np.shape[0],
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "position_ids": position_ids,
+                "is_binary":1
+            }
+            return output
+        else:
+            """
+            Returns one training sample, its label, and its respective length.
+            """
+            idx = idx - len(self.ranking_data) // 2
+            orig_idx = idx = idx % len(self)
+            while True:
+                sample = self.regression_data[idx]
+                sample_text, sample_length = self.encode(sample["text"])
+                sample_label = sample["label"]
+                if idx == orig_idx:
+                    orig_length = sample_length
+                if sample_length <= self.seq_length:
+                    break
+
+                idx = (idx + 1) % len(self)
+                if idx == orig_idx:
+                    raise RuntimeError(f"All samples have length > {self.seq_length}")
+
+            assert isinstance(sample_label, list) and all(
+                isinstance(value, (float, int)) for value in sample_label
+            ), "label should be a list of float or int values"
+
+            sample_label = [float(value) for value in sample_label]
+
+            label_tensor = torch.tensor(sample_label, dtype=torch.float)
+
+            text_np = np.array(sample_text, dtype=np.int64)
+            text_np_pad = np.pad(
+                text_np, (0, max(0, self.seq_length - text_np.shape[0])), mode="constant", constant_values=self.eos_id
+            )
+
+            text_tensor = torch.tensor(text_np_pad)
+            attention_mask, loss_mask, position_ids = _create_ltor_masks_and_position_ids(
+                text_tensor, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss,
+            )
+
+            # Negative index comes when we pad the last batch in MegatronPretrainingBatchSampler
+            # We make the loss_mask zero to mask out loss from these samples
+            if idx == -1:
+                logging.waring("WARNING: Got -1 as item index. Masking loss from this sample")
+                loss_mask = torch.zeros_like(loss_mask)
+
+            # Replace current sample (when it exceeds max length) with another sample but mask its loss
+            if idx != orig_idx:
+                logging.warning(
+                    f"Sample {orig_idx} in dataset '{self.name}' has length "
+                    f"{orig_length} > {self.seq_length} "
+                    f"=> replacing it with sample {idx} and masking its loss"
+                )
+                loss_mask = torch.zeros_like(loss_mask)
+
+            output = {
+                "chosen": torch.zeros_like(text_tensor),
+                "rejected": torch.zeros_like(text_tensor),
+                "chosen_length": text_np.shape[0],
+                "rejected_length": text_np.shape[0],
+
+                "inputs": text_tensor,
+                "lengths": text_np.shape[0],
+                "position_ids": position_ids,
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "labels": label_tensor,
+                "is_binary":0
+            }
+            return output
+
+
 class RewardModelDataset(Dataset):
     """This class assumes that we only have 2 responses per prompt that is ranked. Chosen is the better
         one(even index) whereas Rejected is the worse response(odd index)

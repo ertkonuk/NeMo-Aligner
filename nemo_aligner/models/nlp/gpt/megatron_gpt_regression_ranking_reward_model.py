@@ -29,7 +29,7 @@ from nemo_aligner.models.nlp.gpt.megatron_gpt_reward_model import MegatronGPTRew
 from nemo_aligner.utils.train_utils import set_sync_funcs
 
 
-class MegatronGPTRegressionRewardModel(MegatronGPTRewardModel):
+class MegatronGPTRegressionRankingRewardModel(MegatronGPTRewardModel):
     """
     Megatron GPT Regression Reward Model Training. 
     Regression reward models use a MSE loss to fit multi-attribute numeric labels for each data point.
@@ -128,6 +128,8 @@ class MegatronGPTRegressionRewardModel(MegatronGPTRewardModel):
         set_sync_funcs(self, forward_only)
 
         fwd_bwd_function = get_forward_backward_func()
+        print(batch.keys())
+        exit()
 
         losses_reduced_per_micro_batch = fwd_bwd_function(
             forward_step_func=self.get_forward_output_and_loss_func(forward_only),
