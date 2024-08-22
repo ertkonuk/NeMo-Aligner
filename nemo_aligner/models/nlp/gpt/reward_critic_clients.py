@@ -246,8 +246,10 @@ class RemoteGPTMultitaskClient:
             prompt=prompt,
             kwargs=args["instruction_kwargs"]
         )
-
-        output = test_instruction_following_strict(example, {prompt:response})
+        try:
+            output = test_instruction_following_strict(example, {prompt:response})
+        except:
+            output = [False]
         # queue.put(float(all(output.follow_instruction_list)))
         return float(all(output.follow_instruction_list))
     
@@ -265,8 +267,11 @@ class RemoteGPTMultitaskClient:
         matches = re.findall(pattern, response)
         # print(prompt, response, matches, ans)
         if matches:
-            prediction = float(matches[-1].replace('$', '').replace(',', ''))
-            return int(prediction == ans)
+            try:
+                prediction = float(matches[-1].replace('$', '').replace(',', ''))
+                return int(prediction == ans)
+            except:
+                return 0
         else:
             return 0
     
