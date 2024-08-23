@@ -53,7 +53,6 @@ def main(cfg) -> None:
     """
 
     reward_model_type =reward_model_type = RewardModelType("regression_ranking")
-    print(REWARD_MODEL_CLASS_DICT)
     reward_model_cls = REWARD_MODEL_CLASS_DICT[reward_model_type]
 
     cfg.model = load_and_override_model_config(cfg.pretrained_checkpoint.restore_from_path, cfg.model)

@@ -256,7 +256,6 @@ class RegressionAndRankingRewardModelDataset(Dataset):
         self.drop_last = drop_last
         self.seq_length = seq_length
         self.tokenizer = tokenizer
-
         self.reset_position_ids = cfg.data.get("reset_position_ids", False)
         self.reset_attention_mask = cfg.data.get("reset_attention_mask", False)
         self.eod_mask_loss = cfg.data.get("eod_mask_loss", False)
@@ -339,6 +338,7 @@ class RegressionAndRankingRewardModelDataset(Dataset):
             output = {
                 "inputs": torch.zeros_like(chosen_tokens),
                 "lengths": chosen_np.shape[0],
+                "labels": torch.ones(self.cfg.regression.num_attributes),
                 
                 "chosen": chosen_tokens,
                 "rejected": rejected_tokens,

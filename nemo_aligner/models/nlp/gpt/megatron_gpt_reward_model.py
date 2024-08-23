@@ -156,7 +156,7 @@ class MegatronGPTRewardModel(MegatronGPTModel, SupervisedInterface, Inferrable):
             }
 
             output_tensor = model(**forward_args)
-
+            print("output_tensor", output_tensor.shape)
             # in this nemo version the model and autocast dtypes are not synced
             # so we need to explicitly cast it
             if not parallel_state.is_pipeline_last_stage():
