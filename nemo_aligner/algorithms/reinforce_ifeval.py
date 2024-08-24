@@ -359,10 +359,12 @@ class ReinforceIFEvalTrainer:
 
 
         rollout_batches, rollout_metrics = self._run_inference(dataloader_iter, num_microbatches, is_validation=False)
-        print("ROLLOUT_BATCHES LEN", len(rollout_batches))
+        if not len(rollout_batches):
+            self.model.finish_inference()
+            return 0, 0
         reinforce_rollout_data, reinforce_rollout_metrics = map(cpu_dict, self.generate_reinforce_data(rollout_batches))
 
-        self.model.finish_inference()
+        
 
         self.consumed_samples += (
             reinforce_rollout_data["response_tokens"].size(0) * parallel_state.get_data_parallel_world_size()
@@ -448,10 +450,9 @@ class ReinforceIFEvalTrainer:
                 timing_metrics = {}
 
                 self.timer.start("rollout_time")
-                print("END CONDITION", len(dataloader_iter), num_rollout_micro_batches)
-                if len(dataloader_iter) < num_rollout_micro_batches:
-                    break
                 reinforce_rollout_data, metrics = self.generate_rollouts(dataloader_iter, num_rollout_micro_batches)
+                if not reinforce_rollout_data:
+                    break
                 self.timer.stop("rollout_time")
                 timing_metrics["rollout_time"] = self.timer.get("rollout_time")
 
