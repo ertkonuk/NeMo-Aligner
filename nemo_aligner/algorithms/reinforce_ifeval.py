@@ -112,6 +112,7 @@ class ReinforceIFEvalTrainer:
             return map(lambda x: x.flatten(), tensor.cpu().split(1, dim=0))
 
         for rollout_batch in rollout_batches:
+            
             # NOTE: all items in rollout batch or out of this computation
             # must have a leading B dimension
             prompt_lengths = rollout_batch["prompt_lengths"]
@@ -185,6 +186,7 @@ class ReinforceIFEvalTrainer:
         if not is_validation:
             print("NUM_ROLLOUTS", num_microbatches)
             print(len(dataloader_iter))
+
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 current_batch = None
                 inference_batch_duplicated = {
@@ -214,11 +216,6 @@ class ReinforceIFEvalTrainer:
                         current_batch["response_lengths"] = torch.concatenate([current_batch["response_lengths"], rollout_batch["response_lengths"]], dim=0)
                         current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
-                    
-
-                    
-
-                    
                     
                     
                     future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, args_duplicated)
@@ -360,6 +357,7 @@ class ReinforceIFEvalTrainer:
 
 
         rollout_batches, rollout_metrics = self._run_inference(dataloader_iter, num_microbatches, is_validation=False)
+        print("ROLLOUT_BATCHES LEN", len(rollout_batches))
         reinforce_rollout_data, reinforce_rollout_metrics = map(cpu_dict, self.generate_reinforce_data(rollout_batches))
 
         self.model.finish_inference()
