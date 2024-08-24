@@ -452,6 +452,7 @@ class ReinforceIFEvalTrainer:
                 self.timer.start("rollout_time")
                 reinforce_rollout_data, metrics = self.generate_rollouts(dataloader_iter, num_rollout_micro_batches)
                 if not reinforce_rollout_data:
+                    self.timer.stop("rollout_time")
                     break
                 self.timer.stop("rollout_time")
                 timing_metrics["rollout_time"] = self.timer.get("rollout_time")
