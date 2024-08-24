@@ -112,7 +112,7 @@ class ReinforceIFEvalTrainer:
             return map(lambda x: x.flatten(), tensor.cpu().split(1, dim=0))
 
         for rollout_batch in rollout_batches:
-            
+
             # NOTE: all items in rollout batch or out of this computation
             # must have a leading B dimension
             prompt_lengths = rollout_batch["prompt_lengths"]
@@ -446,6 +446,8 @@ class ReinforceIFEvalTrainer:
                 timing_metrics = {}
 
                 self.timer.start("rollout_time")
+                if len(dataloader_iter) < num_rollout_micro_batches:
+                    break
                 reinforce_rollout_data, metrics = self.generate_rollouts(dataloader_iter, num_rollout_micro_batches)
                 self.timer.stop("rollout_time")
                 timing_metrics["rollout_time"] = self.timer.get("rollout_time")
