@@ -183,11 +183,11 @@ class ReinforceIFEvalTrainer:
         """this function is run per DP so the metrics need to be computed globally
         """
         rollout_batches = []
+        num_batch = 0
+        num_batch_completed = 0
         if not is_validation:
-            print("NUM_ROLLOUTS", num_microbatches)
-            print(len(zip(range(num_microbatches), dataloader_iter)))
-
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
+                num_batch += 1
                 current_batch = None
                 inference_batch_duplicated = {
                     'text':torch.concatenate([inference_batch['text']] * self.duplicate_prompts, dim=0),
@@ -256,7 +256,7 @@ class ReinforceIFEvalTrainer:
                     current_batch["baseline"] = torch.zeros_like(current_batch["rewards"])
 
                 rollout_batches.append(current_batch)
-
+                num_batch_completed += 1
         else:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
@@ -271,9 +271,9 @@ class ReinforceIFEvalTrainer:
                 rollout_batch["ifeval_rewards"] = ifeval_rewards
                 rollout_batches.append(rollout_batch)
         
-        print("pre clear", len(rollout_batches), is_validation, len(zip(range(num_microbatches), dataloader_iter)))
+        print("pre clear", len(rollout_batches), is_validation, num_microbatches, len(dataloader_iter), num_batch, num_batch_completed)
         clear_memory()
-        print("post clear", len(rollout_batches), is_validation, len(zip(range(num_microbatches), dataloader_iter)))
+        print("post clear", len(rollout_batches), is_validation, num_microbatches, len(dataloader_iter), num_batch, num_batch_completed)
         return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
 
     def compute_global_rollout_metrics(self, rollout_batches):
