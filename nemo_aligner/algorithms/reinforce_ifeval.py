@@ -446,6 +446,7 @@ class ReinforceIFEvalTrainer:
                 timing_metrics = {}
 
                 self.timer.start("rollout_time")
+                print("END CONDITION", len(dataloader_iter), num_rollout_micro_batches)
                 if len(dataloader_iter) < num_rollout_micro_batches:
                     break
                 reinforce_rollout_data, metrics = self.generate_rollouts(dataloader_iter, num_rollout_micro_batches)
