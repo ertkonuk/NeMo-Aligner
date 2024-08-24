@@ -332,11 +332,11 @@ class ReinforceIFEvalTrainer:
 
         metrics = {
             "table": table,
-            "global_response_lengths_mean": global_response_lengths / global_num_samples,
-            "global_prompt_lengths": global_prompt_lengths / global_num_samples,
-            "global_rewards": global_rewards / global_num_samples,
-            "global_rm_rewards": global_rm_rewards / global_num_samples,
-            "global_ifeval_rewards": global_ifeval_rewards / global_num_samples,
+            "global_response_lengths_mean": global_response_lengths / (global_num_samples + 1e-6),
+            "global_prompt_lengths": global_prompt_lengths / (global_num_samples + 1e-6),
+            "global_rewards": global_rewards / (global_num_samples + 1e-6),
+            "global_rm_rewards": global_rm_rewards / (global_num_samples + 1e-6),
+            "global_ifeval_rewards": global_ifeval_rewards / (global_num_samples + 1e-6),
         }
 
         return metrics
