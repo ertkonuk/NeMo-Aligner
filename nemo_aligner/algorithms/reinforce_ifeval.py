@@ -185,7 +185,7 @@ class ReinforceIFEvalTrainer:
         rollout_batches = []
         if not is_validation:
             print("NUM_ROLLOUTS", num_microbatches)
-            print(len(dataloader_iter))
+            print(len(zip(range(num_microbatches), dataloader_iter)))
 
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 current_batch = None
@@ -271,7 +271,9 @@ class ReinforceIFEvalTrainer:
                 rollout_batch["ifeval_rewards"] = ifeval_rewards
                 rollout_batches.append(rollout_batch)
         
+        print("pre clear", len(rollout_batches), is_validation, len(zip(range(num_microbatches), dataloader_iter)))
         clear_memory()
+        print("post clear", len(rollout_batches), is_validation, len(zip(range(num_microbatches), dataloader_iter)))
         return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
 
     def compute_global_rollout_metrics(self, rollout_batches):
