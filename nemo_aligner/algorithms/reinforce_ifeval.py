@@ -183,6 +183,8 @@ class ReinforceIFEvalTrainer:
         """
         rollout_batches = []
         if not is_validation:
+            print("NUM_ROLLOUTS", num_microbatches)
+            print(len(dataloader_iter))
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 current_batch = None
                 inference_batch_duplicated = {
@@ -355,7 +357,6 @@ class ReinforceIFEvalTrainer:
     @torch.no_grad()
     def generate_rollouts(self, dataloader_iter, num_microbatches):
         self.model.prepare_for_inference()
-
 
 
         rollout_batches, rollout_metrics = self._run_inference(dataloader_iter, num_microbatches, is_validation=False)
