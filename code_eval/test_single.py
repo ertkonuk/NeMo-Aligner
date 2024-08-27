@@ -106,7 +106,7 @@ def unsafe_execute(
             if fn is None:
                 if debug:
                     print(f"Function {entry_point} not found.")
-                stat.value = _FAILED
+                stat.value = 0
                 return stat.value, details
 
         for i, inp in enumerate(inputs):
@@ -136,7 +136,7 @@ def unsafe_execute(
             details[i] = True
             progress.value += 1
 
-        stat.value = _SUCCESS
+        stat.value = 1
 
     except Exception as e:
         if debug:
@@ -167,10 +167,8 @@ if __name__ == "__main__":
     return d
     '''
 
-    _SUCCESS = 0
-    _FAILED = 1
-    _TIMEOUT = 2
-    _UNKNOWN = 3
+    _SUCCESS = 1
+    _FAILED = 0
     
     inputs = [(0,), (1,), (5,)]
     progress = Value("i", 0)
