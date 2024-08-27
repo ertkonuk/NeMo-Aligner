@@ -25,6 +25,8 @@ from nemo_aligner.utils.distributed import broadcast_2d_tensor_within_mp, gather
 from nemo_aligner.utils.server_utils import FutureResult
 from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
 import re
+from code_eval.test_single import unsafe_execute
+from multiprocessing import Value
 """A remote client that acts like a real Reward Model and Critic forwards all requests from the actor
     over to the remote PyTrition server
 """
@@ -258,6 +260,8 @@ class RemoteGPTMultitaskClient:
             return self.ifeval_rewards(prompt, response, args)
         elif args["task"] == "gsm8k":
             return self.gsm8k_rewards(prompt, response, args)
+        elif args["task"] == "coding":
+            return self.coding_rewards(prompt, response, args)
         else:
             return 0
     
@@ -274,9 +278,28 @@ class RemoteGPTMultitaskClient:
                 return 0
         else:
             return 0
+
+    def coding_rewards(self, prompt, response, args):
+        fn_name = args["fn_name"]
+        inputs = args["inputs"]
+        outputs = args["outputs"]
+        progress = Value("i", 0)
+        stat = Value("i", 3)
+        details = [False for _ in range(len(inputs))]
+        time_limits = [60 for _ in range(len(inputs))]
+
+        try:
+            code = response.split("```python\n")[1].split("```")[0].split("assert")[0].split("# Test")[0].split("# Unit")[0].strip()
+        except:
+            code = response.replace("# Your codes here\n", "").split("```")[0].strip()
+
+
+        _, results = unsafe_execute(entry_point=fn_name, code=code, inputs=inputs, expected=outputs, time_limits=time_limits, atol=1e-6, stat=stat, details=details, progress=progress)
+        return int(all(results))
+
     
     def task_mask(self, args, device):
-        mask = torch.tensor([1 if arg["task"] in ["ifeval", "gsm8k"] else 0 for arg in args], device=device).float()
+        mask = torch.tensor([1 if arg["task"] in ["ifeval", "gsm8k", "apps"] else 0 for arg in args], device=device).float()
         return mask.unsqueeze(-1)
 
     def infer_rm_critic(self, rollout_batch, model, args):

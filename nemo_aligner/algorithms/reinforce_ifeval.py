@@ -271,9 +271,7 @@ class ReinforceIFEvalTrainer:
                 rollout_batch["ifeval_rewards"] = ifeval_rewards
                 rollout_batches.append(rollout_batch)
         
-        print("pre clear", len(rollout_batches), is_validation, num_microbatches, len(dataloader_iter), num_batch, num_batch_completed)
         clear_memory()
-        print("post clear", len(rollout_batches), is_validation, num_microbatches, len(dataloader_iter), num_batch, num_batch_completed)
         return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
 
     def compute_global_rollout_metrics(self, rollout_batches):
