@@ -299,7 +299,7 @@ class RemoteGPTMultitaskClient:
 
     
     def task_mask(self, args, device):
-        mask = torch.tensor([1 if arg["task"] in ["ifeval", "gsm8k", "apps"] else 0 for arg in args], device=device).float()
+        mask = torch.tensor([1 if arg["task"] in ["ifeval", "gsm8k", "coding"] else 0 for arg in args], device=device).float()
         return mask.unsqueeze(-1)
 
     def infer_rm_critic(self, rollout_batch, model, args):
