@@ -93,11 +93,8 @@ def unsafe_execute(
 
     exec_globals = {}
     original_stdout, original_stderr = sys.stdout, sys.stderr
-
-    print("-"*30)
-    print(code)
-    print("-" * 30)
-
+    maximum_memory_bytes = 1 * 1024 * 1024 * 1024
+    reliability_guard(maximum_memory_bytes=maximum_memory_bytes)
     try:
         with swallow_io():
             exec(code, exec_globals)
