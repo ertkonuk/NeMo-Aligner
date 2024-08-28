@@ -286,7 +286,7 @@ class RemoteGPTMultitaskClient:
         progress = Value("i", 0)
         stat = Value("i", 3)
         details = [False for _ in range(len(inputs))]
-        time_limits = [60 for _ in range(len(inputs))]
+        time_limits = [5 for _ in range(len(inputs))]
 
         try:
             code = response.split("```python\n")[1].split("```")[0].split("assert")[0].split("# Test")[0].split("# Unit")[0].strip()
