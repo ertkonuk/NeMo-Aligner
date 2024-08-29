@@ -217,11 +217,14 @@ class ReinforceIFEvalTrainer:
                         current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
                     
-                    
-                    future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, args_duplicated)
-                    rm_rewards = future.result().detach()
+                    if self.cfg.rm_multiplier == 0:
+                        _, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, args_duplicated, rm=False)
+                        rm_rewards = torch.zeros_like(ifeval_rewards)
+                    else:
+                        future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, args_duplicated, rm=True)
+                        rm_rewards = future.result().detach()
                     # rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards * self.cfg.ifeval_multiplier
-                    rewards =  rm_rewards * self.cfg.rm_multiplier + ifeval_mask * ifeval_rewards * self.cfg.ifeval_multiplier
+                    rewards =  rm_rewards * self.cfg.rm_multiplier + ifeval_rewards * self.cfg.ifeval_multiplier
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
                     if "rewards" in current_batch:
@@ -261,10 +264,15 @@ class ReinforceIFEvalTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
                 
-                future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, inference_batch["args"])
-                rm_rewards = future.result().detach()
 
-                rewards = self.cfg.ifeval_multiplier * ifeval_mask * ifeval_rewards + (1 - ifeval_mask) * rm_rewards
+                if self.cfg.rm_multiplier == 0:
+                    _, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, inference_batch["args"], rm=False)
+                    rm_rewards = torch.zeros_like(ifeval_rewards)
+                else:
+                    future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, inference_batch["args"], rm=True)
+                    rm_rewards = future.result().detach()
+
+                rewards = self.cfg.ifeval_multiplier * ifeval_rewards + self.cfg.rm_multiplier * rm_rewards
                 
                 rollout_batch["rewards"] = rewards
                 rollout_batch["rm_rewards"] = rm_rewards

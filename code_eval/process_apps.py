@@ -30,7 +30,8 @@ for i, x in enumerate(iterator):
 Here is the given problem and test examples:
 {question}
 Please use the python programming language to solve this problem.
-Please return only the function in one code block. You do not need to run the code for the test cases.
+Please make sure that your code includes the function mentioned and that the input and output format matches the test samples.
+Please return all completed codes in one code block.
 This code block should be in the following format:
 ```python
 # Your codes here
@@ -57,12 +58,12 @@ random.shuffle(data)
 val = data[:512]
 train = data[512:]
 
-with open("../data/llama3_apps_short_train.jsonl", "w") as f:
+with open("../data/llama3_apps_mbpp_train.jsonl", "w") as f:
     for data in train:
         jsonline = json.dumps(data)
         f.write(jsonline + "\n")
 
-with open("../data/llama3_apps_short_val.jsonl", "w") as f:
+with open("../data/llama3_apps_mbpp_val.jsonl", "w") as f:
     for data in val:
         jsonline = json.dumps(data)
         f.write(jsonline + "\n")

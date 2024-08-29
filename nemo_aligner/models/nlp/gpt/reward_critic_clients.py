@@ -302,7 +302,7 @@ class RemoteGPTMultitaskClient:
         mask = torch.tensor([1 if arg["task"] in ["ifeval", "gsm8k", "coding"] else 0 for arg in args], device=device).float()
         return mask.unsqueeze(-1)
 
-    def infer_rm_critic(self, rollout_batch, model, args):
+    def infer_rm_critic(self, rollout_batch, model, args, rm=True):
         response_tokens = rollout_batch["response_tokens"].cpu()
         og_seq_length = response_tokens.size(-1)
 
@@ -317,21 +317,24 @@ class RemoteGPTMultitaskClient:
         ifeval_mask = self.task_mask(args, device=rollout_batch["logprobs"].device)
         ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
 
-        if self.pad_to_length is not None:
-            assert (
-                og_seq_length <= self.pad_to_length
-            ), f"original shape before padding {og_seq_length} is higher than {self.pad_to_length}"
-            response_tokens = torch.nn.functional.pad(
-                response_tokens, (0, self.pad_to_length - response_tokens.size(-1)), value=0
+        if rm:
+            if self.pad_to_length is not None:
+                assert (
+                    og_seq_length <= self.pad_to_length
+                ), f"original shape before padding {og_seq_length} is higher than {self.pad_to_length}"
+                response_tokens = torch.nn.functional.pad(
+                    response_tokens, (0, self.pad_to_length - response_tokens.size(-1)), value=0
+                )
+
+            send_data = {
+                "tokens": response_tokens.numpy(),
+                "sequence_lengths": rollout_batch["response_lengths"].unsqueeze(1).cpu().numpy(),
+            }
+
+            rm_future = run_if_model_parallel_src(
+                self.communicator.send_data_to_server, server_name=self.cfg.reward_model.name, data=send_data
             )
 
-        send_data = {
-            "tokens": response_tokens.numpy(),
-            "sequence_lengths": rollout_batch["response_lengths"].unsqueeze(1).cpu().numpy(),
-        }
-
-        rm_future = run_if_model_parallel_src(
-            self.communicator.send_data_to_server, server_name=self.cfg.reward_model.name, data=send_data
-        )
-
-        return RMFutureResult(rm_future), ifeval_rewards, ifeval_mask
+            return RMFutureResult(rm_future), ifeval_rewards, ifeval_mask
+        else:
+            return None, ifeval_rewards, ifeval_mask
