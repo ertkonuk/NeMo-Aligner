@@ -104,8 +104,8 @@ def unsafe_execute(
             if fn is None:
                 if debug:
                     print(f"Function {entry_point} not found.")
-                stat.value = 0
-                return stat.value, details
+                stat = 0
+                return stat, details
 
         for i, inp in enumerate(inputs):
             try:
@@ -128,19 +128,19 @@ def unsafe_execute(
                     print(f"Exception during test {i}: {e}")
                 # traceback.print_exc()
                 details[i] = False
-                progress.value += 1
+                progress += 1
                 continue
 
             details[i] = True
-            progress.value += 1
+            progress += 1
 
-        stat.value = 1
+        stat = 1
 
     except Exception as e:
         if debug:
             print("Error during execution")
         traceback.print_exc()
-        stat.value = 1
+        stat = 1
 
     finally:
         # Restore original state if necessary
@@ -148,7 +148,7 @@ def unsafe_execute(
         os.chdir = original_chdir
         # Any additional cleanup can go here
 
-    return stat.value, details
+    return stat, details
 
 
 
