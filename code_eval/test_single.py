@@ -94,6 +94,12 @@ def unsafe_execute(
     exec_globals = {}
     original_stdout, original_stderr = sys.stdout, sys.stderr
     original_chdir = os.chdir
+    og_ipdb = sys.modules["ipdb"]
+    og_joblib = sys.modules["joblib"]
+    og_resource = sys.modules["resource"]
+    og_psutil = sys.modules["psutil"]
+    og_tkinter = sys.modules["tkinter"]
+
     maximum_memory_bytes = 1 * 1024 * 1024 * 1024
     reliability_guard(maximum_memory_bytes=maximum_memory_bytes)
     try:
@@ -146,6 +152,11 @@ def unsafe_execute(
         # Restore original state if necessary
         sys.stdout, sys.stderr = original_stdout, original_stderr
         os.chdir = original_chdir
+        sys.modules["ipdb"] = og_joblib
+        sys.modules["joblib"] = og_joblib
+        sys.modules["resource"] = og_resource
+        sys.modules["psutil"] = og_psutil
+        sys.modules["tkinter"] = og_tkinter
         # Any additional cleanup can go here
 
     return stat, details
