@@ -283,8 +283,8 @@ class RemoteGPTMultitaskClient:
         fn_name = args["fn_name"]
         inputs = args["inputs"]
         outputs = args["outputs"]
-        progress = Value("i", 0)
-        stat = Value("i", 3)
+        progress = 0
+        stat = 0
         details = [False for _ in range(len(inputs))]
         time_limits = [5 for _ in range(len(inputs))]
 

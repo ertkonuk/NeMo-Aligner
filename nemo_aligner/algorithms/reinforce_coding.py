@@ -62,7 +62,6 @@ class ReinforceIFEvalTrainer:
         run_timer,
         generation_iter,
         duplicate_prompts,
-        rm_critic,
     ):
         self.cfg = cfg
         self.model = model
@@ -74,7 +73,6 @@ class ReinforceIFEvalTrainer:
         self.ckpt_callback = ckpt_callback
         self.generation_iter = generation_iter
         self.duplicate_prompts = duplicate_prompts
-        self.rm_critic = rm_critic
 
         # this timer checks if we should stop training
         self.run_timer = run_timer
@@ -218,8 +216,7 @@ class ReinforceIFEvalTrainer:
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
                     
                     
-                    future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, args_duplicated)
-                    rm_rewards = future.result().detach()
+                    code_rewards = self.code_critic.infer_rm_critic(rollout_batch, self.model, args_duplicated)
                     # rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards * self.cfg.ifeval_multiplier
                     rewards =  rm_rewards * self.cfg.rm_multiplier + ifeval_rewards * self.cfg.ifeval_multiplier
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
@@ -260,9 +257,6 @@ class ReinforceIFEvalTrainer:
         else:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
-                
-                future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, inference_batch["args"])
-                rm_rewards = future.result().detach()
 
                 rewards = self.cfg.ifeval_multiplier * ifeval_rewards + rm_rewards
                 

@@ -10,7 +10,7 @@ import sys
 from contextlib import contextmanager
 import signal
 import numpy as np
-
+import resource 
 from evalplus.eval.utils import (
     # create_tempdir,
     reliability_guard,
@@ -93,6 +93,10 @@ def unsafe_execute(
 
     exec_globals = {}
     original_stdout, original_stderr = sys.stdout, sys.stderr
+    original_chdir = os.chdir
+    og_putenv = os.putenv
+    og_resource = sys.modules["resource"]
+
     maximum_memory_bytes = 1 * 1024 * 1024 * 1024
     reliability_guard(maximum_memory_bytes=maximum_memory_bytes)
     try:
@@ -103,8 +107,8 @@ def unsafe_execute(
             if fn is None:
                 if debug:
                     print(f"Function {entry_point} not found.")
-                stat.value = 0
-                return stat.value, details
+                stat = 0
+                return stat, details
 
         for i, inp in enumerate(inputs):
             try:
@@ -127,26 +131,29 @@ def unsafe_execute(
                     print(f"Exception during test {i}: {e}")
                 # traceback.print_exc()
                 details[i] = False
-                progress.value += 1
+                progress += 1
                 continue
 
             details[i] = True
-            progress.value += 1
+            progress += 1
 
-        stat.value = 1
+        stat = 1
 
     except Exception as e:
         if debug:
             print("Error during execution")
         traceback.print_exc()
-        stat.value = 1
+        stat = 1
 
     finally:
         # Restore original state if necessary
         sys.stdout, sys.stderr = original_stdout, original_stderr
+        os.chdir = original_chdir
+        os.putenv = og_putenv
+        sys.modules["resource"] = og_resource
         # Any additional cleanup can go here
 
-    return stat.value, details
+    return stat, details
 
 
 
