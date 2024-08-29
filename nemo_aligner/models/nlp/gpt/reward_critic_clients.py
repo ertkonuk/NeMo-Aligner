@@ -26,7 +26,7 @@ from nemo_aligner.utils.server_utils import FutureResult
 from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
 import re
 from code_eval.test_single import unsafe_execute
-from multiprocessing import Value
+
 """A remote client that acts like a real Reward Model and Critic forwards all requests from the actor
     over to the remote PyTrition server
 """
@@ -293,7 +293,6 @@ class RemoteGPTMultitaskClient:
         except:
             code = response.replace("# Your codes here\n", "").split("```")[0].strip()
 
-
         _, results = unsafe_execute(entry_point=fn_name, code=code, inputs=inputs, expected=outputs, time_limits=time_limits, atol=1e-6, stat=stat, details=details, progress=progress)
         return int(all(results))
 
@@ -313,10 +312,13 @@ class RemoteGPTMultitaskClient:
             for end_string in self.cfg.end_strings:
                 response = response.replace(end_string, "")
             ifeval_rewards.append(self.task_reward(prompt, response, args[i]))
+
+            
+            
             
         ifeval_mask = self.task_mask(args, device=rollout_batch["logprobs"].device)
         ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
-
+        rm = False
         if rm:
             if self.pad_to_length is not None:
                 assert (

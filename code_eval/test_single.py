@@ -1,8 +1,6 @@
 import itertools
-import multiprocessing
 import os
 import time
-from multiprocessing import Array, Value
 from typing import Any, Dict, List, Tuple, Union
 import shutil
 import traceback
@@ -10,6 +8,7 @@ import sys
 from contextlib import contextmanager
 import signal
 import numpy as np
+import resource
 
 from evalplus.eval.utils import (
     # create_tempdir,
@@ -87,6 +86,7 @@ def unsafe_execute(
     details,  # Array
     progress,  # Value
     debug=False
+    
 ):
     if debug:
         print("Starting execution")
@@ -94,11 +94,9 @@ def unsafe_execute(
     exec_globals = {}
     original_stdout, original_stderr = sys.stdout, sys.stderr
     original_chdir = os.chdir
-    og_ipdb = sys.modules["ipdb"]
-    og_joblib = sys.modules["joblib"]
+    og_putenv = os.putenv
     og_resource = sys.modules["resource"]
-    og_psutil = sys.modules["psutil"]
-    og_tkinter = sys.modules["tkinter"]
+
 
     maximum_memory_bytes = 1 * 1024 * 1024 * 1024
     reliability_guard(maximum_memory_bytes=maximum_memory_bytes)
@@ -152,11 +150,9 @@ def unsafe_execute(
         # Restore original state if necessary
         sys.stdout, sys.stderr = original_stdout, original_stderr
         os.chdir = original_chdir
-        sys.modules["ipdb"] = og_joblib
-        sys.modules["joblib"] = og_joblib
+        os.putenv = og_putenv
         sys.modules["resource"] = og_resource
-        sys.modules["psutil"] = og_psutil
-        sys.modules["tkinter"] = og_tkinter
+
         # Any additional cleanup can go here
 
     return stat, details

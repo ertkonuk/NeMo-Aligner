@@ -38,6 +38,7 @@ from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_p
 from nemo_aligner.utils.utils import clear_memory, cpu_dict
 
 
+
 def compute_num_rollout_microbatches(dataloader):
     return divide(
         divide(dataloader.batch_sampler.global_batch_size, dataloader.batch_sampler.micro_batch_size),
@@ -165,14 +166,15 @@ class ReinforceIFEvalTrainer:
         unique_prompts = torch.unique(batch["prompt_tokens"], dim=0)
         regularized_reward = batch["rewards"] - self.cfg.initial_policy_kl_penalty * batch["init_policy_kl"]
 
-        batch["baseline"] = torch.zeros_like(batch["rewards"])
+        batch["baseline"] = torch.zeros_like(batch["rewards"]).float()
         reward_device = batch["rewards"].get_device()
         for i in range(len(unique_prompts)):
             prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
             rloo_mat = (1 - torch.eye(len(prompt_idx))).to(reward_device)
 
             rloo = torch.matmul(rloo_mat, regularized_reward[prompt_idx]) / (len(prompt_idx) - 1)
-            batch["baseline"][prompt_idx] = rloo
+            print(type(batch["baseline"][prompt_idx]), type(rloo.float()))
+            batch["baseline"][prompt_idx] = rloo.float()
         return batch
 
     
