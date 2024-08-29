@@ -93,6 +93,7 @@ def unsafe_execute(
 
     exec_globals = {}
     original_stdout, original_stderr = sys.stdout, sys.stderr
+    original_chdir = os.chdir
     maximum_memory_bytes = 1 * 1024 * 1024 * 1024
     reliability_guard(maximum_memory_bytes=maximum_memory_bytes)
     try:
@@ -144,6 +145,7 @@ def unsafe_execute(
     finally:
         # Restore original state if necessary
         sys.stdout, sys.stderr = original_stdout, original_stderr
+        os.chdir = original_chdir
         # Any additional cleanup can go here
 
     return stat.value, details
