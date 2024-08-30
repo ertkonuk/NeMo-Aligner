@@ -211,6 +211,7 @@ def unsafe_execute(
         sys.modules["resource"] = og_resource
         # Any additional cleanup can go here
 
+    print(stat, details< "code")
     return stat, details
 
 

@@ -417,7 +417,7 @@ class CodeEvaluator:
         ),
         )
         p.start()
-        timeout = time_limits[0]
+        timeout = sum(time_limits)
         p.join(timeout=timeout + 1)
         if p.is_alive():
             p.terminate()
