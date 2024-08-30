@@ -10,13 +10,62 @@ import sys
 from contextlib import contextmanager
 import signal
 import numpy as np
-import resource 
 from evalplus.eval.utils import (
     # create_tempdir,
-    reliability_guard,
+    # reliability_guard,
     swallow_io,
     time_limit,
 )
+
+import resource
+
+def set_memory_limit(limit_type, maximum_memory_bytes):
+    """Sets the memory limits for the current process."""
+    soft, hard = resource.getrlimit(limit_type)
+    # Ensure we are not increasing the limit
+    if maximum_memory_bytes < soft:
+        soft = maximum_memory_bytes
+    resource.setrlimit(limit_type, (soft, hard))
+
+def get_memory_limits():
+    """Gets the current memory limits for the process."""
+    as_limit = resource.getrlimit(resource.RLIMIT_AS)
+    data_limit = resource.getrlimit(resource.RLIMIT_DATA)
+    return as_limit, data_limit
+
+def reliability_guard(maximum_memory_bytes=None):
+    """
+    Limits memory usage for a single function call and then restores original memory limits.
+    
+    WARNING
+    This function is NOT a security sandbox. Untrusted code should not be executed
+    without a proper security sandbox.
+    """
+
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            # Get current limits
+            original_as_limit, original_data_limit = get_memory_limits()
+            
+            try:
+                if maximum_memory_bytes is not None:
+                    # Set new memory limits without exceeding the original limits
+                    set_memory_limit(resource.RLIMIT_AS, maximum_memory_bytes)
+                    set_memory_limit(resource.RLIMIT_DATA, maximum_memory_bytes)
+                
+                # Execute the function
+                return func(*args, **kwargs)
+            
+            finally:
+                # Restore original memory limits
+                resource.setrlimit(resource.RLIMIT_AS, original_as_limit)
+                resource.setrlimit(resource.RLIMIT_DATA, original_data_limit)
+
+        return wrapper
+    
+    return decorator
+
+
 
 def is_float(string):
     try:
@@ -76,6 +125,10 @@ def temp_directory():
         os.chdir(original_dir)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+def execute_code(entry_point, code, inputs, expected, time_limits, atol, stat, details, progress, debug):
+    unsafe_execute(entry_point, code, inputs, expected, time_limits, atol, stat, details, progress, debug)
+
+@reliability_guard(maximum_memory_bytes=1024*1024*1024*1)
 def unsafe_execute(
     entry_point: str,
     code: str,
@@ -98,7 +151,12 @@ def unsafe_execute(
     og_resource = sys.modules["resource"]
 
     maximum_memory_bytes = 1 * 1024 * 1024 * 1024
-    reliability_guard(maximum_memory_bytes=maximum_memory_bytes)
+    # reliability_guard(maximum_memory_bytes=maximum_memory_bytes)
+    sys.stdout, sys.stderr = original_stdout, original_stderr
+    os.chdir = original_chdir
+    os.putenv = og_putenv
+    sys.modules["resource"] = og_resource
+    return stat, details
     try:
         with swallow_io():
             exec(code, exec_globals)

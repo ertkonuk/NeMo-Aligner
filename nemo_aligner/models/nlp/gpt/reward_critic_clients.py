@@ -25,8 +25,10 @@ from nemo_aligner.utils.distributed import broadcast_2d_tensor_within_mp, gather
 from nemo_aligner.utils.server_utils import FutureResult
 from instruction_following_eval.evaluation_main import InputExample, test_instruction_following_strict
 import re
-from code_eval.test_single import unsafe_execute
+from code_eval.test_single import unsafe_execute, execute_code
 from multiprocessing import Value
+import multiprocessing
+import time
 """A remote client that acts like a real Reward Model and Critic forwards all requests from the actor
     over to the remote PyTrition server
 """
@@ -294,7 +296,7 @@ class RemoteGPTMultitaskClient:
             code = response.replace("# Your codes here\n", "").split("```")[0].strip()
 
 
-        _, results = unsafe_execute(entry_point=fn_name, code=code, inputs=inputs, expected=outputs, time_limits=time_limits, atol=1e-6, stat=stat, details=details, progress=progress)
+        _, results = execute_code(entry_point=fn_name, code=code, inputs=inputs, expected=outputs, time_limits=time_limits, atol=1e-6, stat=stat, details=details, progress=progress)
         return int(all(results))
 
     
@@ -335,3 +337,122 @@ class RemoteGPTMultitaskClient:
         )
 
         return RMFutureResult(rm_future), ifeval_rewards, ifeval_mask
+
+
+
+@dataclass
+class CodeEvaluator:
+    cfg: DictConfig
+
+    def __post_init__(self):
+        cfg = self.cfg
+    
+    def ifeval_rewards(self, prompt, response, args):
+        
+        example = InputExample(
+            key="",
+            instruction_id_list=args["instruction_id_list"],
+            prompt=prompt,
+            kwargs=args["instruction_kwargs"]
+        )
+        try:
+            output = test_instruction_following_strict(example, {prompt:response})
+        except:
+            output = [False]
+        # queue.put(float(all(output.follow_instruction_list)))
+        return float(all(output.follow_instruction_list))
+    
+    def task_reward(self, prompt, response, args):
+        if args["task"] == "ifeval":
+            return self.ifeval_rewards(prompt, response, args)
+        elif args["task"] == "gsm8k":
+            return self.gsm8k_rewards(prompt, response, args)
+        elif args["task"] == "coding":
+            return self.coding_rewards(prompt, response, args)
+        else:
+            return 0
+    
+    def gsm8k_rewards(self, prompt, response, args):
+        ans = args["answer"]
+        pattern = r"-?\$?\d[\d,]*\.?\d*|-?\.\d+"
+        matches = re.findall(pattern, response)
+        # print(prompt, response, matches, ans)
+        if matches:
+            try:
+                prediction = float(matches[-1].replace('$', '').replace(',', ''))
+                return int(prediction == ans)
+            except:
+                return 0
+        else:
+            return 0
+
+    def coding_rewards(self, prompt, response, args):
+        fn_name = args["fn_name"]
+        inputs = args["inputs"]
+        if len(inputs) == 0:
+            return 0
+        outputs = args["outputs"]
+        progress = 0
+        stat = 0
+        details = [False for _ in range(len(inputs))]
+        time_limits = [5 for _ in range(len(inputs))]
+
+        try:
+            code = response.split("```python\n")[1].split("```")[0].split("assert")[0].split("# Test")[0].split("# Unit")[0].strip()
+        except:
+            code = response.replace("# Your codes here\n", "").split("```")[0].strip()
+
+        p = multiprocessing.Process(
+        target=execute_code,
+        args=(
+            fn_name,
+            code,
+            inputs,
+            outputs,
+            time_limits,
+            1e-6,
+            stat,
+            details,
+            progress,
+        ),
+        )
+        p.start()
+        timeout = time_limits[0]
+        p.join(timeout=timeout + 1)
+        if p.is_alive():
+            p.terminate()
+            time.sleep(0.1)
+        if p.is_alive():
+            p.kill()
+            time.sleep(0.1)
+
+        print(stat, "!!!!!!!!!")
+
+        print(len(inputs))
+        _, results = unsafe_execute(entry_point=fn_name, code=code, inputs=inputs, expected=outputs, time_limits=time_limits, atol=1e-6, stat=stat, details=details, progress=progress)
+        # print(results)
+        return 0
+        # return int(all(results))
+
+    
+    def task_mask(self, args, device):
+        mask = torch.tensor([1 if arg["task"] in ["ifeval", "gsm8k", "coding"] else 0 for arg in args], device=device).float()
+        return mask.unsqueeze(-1)
+
+    def infer(self, rollout_batch, model, args):
+        response_tokens = rollout_batch["response_tokens"].cpu()
+        og_seq_length = response_tokens.size(-1)
+
+        ifeval_rewards = []
+        for i in range(rollout_batch["response_tokens"].size(0)):
+            prompt = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["prompt_lengths"][i]].tolist())
+            response = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, rollout_batch["prompt_lengths"][i]:rollout_batch["response_lengths"][i]].tolist())
+            for end_string in self.cfg.end_strings:
+                response = response.replace(end_string, "")
+            ifeval_rewards.append(self.task_reward(prompt, response, args[i]))
+            
+        ifeval_mask = self.task_mask(args, device=rollout_batch["logprobs"].device)
+        ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
+
+
+        return ifeval_rewards, ifeval_mask

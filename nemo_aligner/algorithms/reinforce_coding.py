@@ -45,7 +45,7 @@ def compute_num_rollout_microbatches(dataloader):
     )
 
 
-class ReinforceIFEvalTrainer:
+class ReinforceCodeTrainer:
     """Trainer to coordinate reinforce training
     """
 
@@ -62,6 +62,7 @@ class ReinforceIFEvalTrainer:
         run_timer,
         generation_iter,
         duplicate_prompts,
+        evaluator
     ):
         self.cfg = cfg
         self.model = model
@@ -73,6 +74,7 @@ class ReinforceIFEvalTrainer:
         self.ckpt_callback = ckpt_callback
         self.generation_iter = generation_iter
         self.duplicate_prompts = duplicate_prompts
+        self.evaluator=evaluator
 
         # this timer checks if we should stop training
         self.run_timer = run_timer
@@ -163,17 +165,15 @@ class ReinforceIFEvalTrainer:
         unique_prompts = torch.unique(batch["prompt_tokens"], dim=0)
         regularized_reward = batch["rewards"] - self.cfg.initial_policy_kl_penalty * batch["init_policy_kl"]
 
-        batch["baseline"] = torch.zeros_like(batch["rewards"])
+        batch["baseline"] = torch.zeros_like(batch["rewards"]).float()
         reward_device = batch["rewards"].get_device()
         for i in range(len(unique_prompts)):
             prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
             rloo_mat = (1 - torch.eye(len(prompt_idx))).to(reward_device)
 
             rloo = torch.matmul(rloo_mat, regularized_reward[prompt_idx]) / (len(prompt_idx) - 1)
-            batch["baseline"][prompt_idx] = rloo
+            batch["baseline"][prompt_idx] = rloo.float()
         return batch
-
-    
     
     
     
@@ -216,21 +216,26 @@ class ReinforceIFEvalTrainer:
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
                     
                     
-                    code_rewards = self.code_critic.infer_rm_critic(rollout_batch, self.model, args_duplicated)
-                    # rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards * self.cfg.ifeval_multiplier
-                    rewards =  rm_rewards * self.cfg.rm_multiplier + ifeval_rewards * self.cfg.ifeval_multiplier
+                    code_rewards, _ = self.evaluator.infer(rollout_batch, self.model, args_duplicated)
+                    clear_memory()
+                    print(code_rewards)
+                    # # rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards * self.cfg.ifeval_multiplier
+                    # rewards = code_rewards
+                    code_rewards = torch.zeros_like(rollout_batch["prompt_lengths"]).unsqueeze(-1)
+                    rewards = code_rewards
+                    rm_rewards = torch.zeros_like(code_rewards)
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
                     if "rewards" in current_batch:
                         current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
                         current_batch["rm_rewards"] = torch.concatenate([current_batch["rm_rewards"], rm_rewards], dim=0)
-                        current_batch["ifeval_rewards"] = torch.concatenate([current_batch["ifeval_rewards"], ifeval_rewards], dim=0)
+                        current_batch["ifeval_rewards"] = torch.concatenate([current_batch["ifeval_rewards"], code_rewards], dim=0)
                         current_batch["init_logprobs"], _ = pad_batch(current_batch["init_logprobs"], init_policy_logprobs, 0)
                         current_batch["init_logprobs"] = torch.concatenate([current_batch["init_logprobs"], init_policy_logprobs], dim=0)
                     else:
                         current_batch["rewards"] = rewards
                         current_batch["rm_rewards"] = rm_rewards 
-                        current_batch["ifeval_rewards"] = ifeval_rewards 
+                        current_batch["ifeval_rewards"] = code_rewards 
                         current_batch["init_logprobs"] = init_policy_logprobs
 
                 # Compute baselines and KL penalty here, as we need to use the inference batch in their computation
@@ -258,11 +263,18 @@ class ReinforceIFEvalTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
 
-                rewards = self.cfg.ifeval_multiplier * ifeval_rewards + rm_rewards
+                # code_rewards, _ = self.evaluator.infer(rollout_batch, self.model, inference_batch)
+                # print(code_rewards.shape)
+                code_rewards = torch.zeros_like(rollout_batch["prompt_lengths"]).unsqueeze(-1)
+                print(code_rewards.shape)
+                rewards = code_rewards
+                # rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards * self.cfg.ifeval_multiplier
+                # rewards = code_rewards
+                rm_rewards = torch.zeros_like(code_rewards)
                 
                 rollout_batch["rewards"] = rewards
                 rollout_batch["rm_rewards"] = rm_rewards
-                rollout_batch["ifeval_rewards"] = ifeval_rewards
+                rollout_batch["ifeval_rewards"] = code_rewards
                 rollout_batches.append(rollout_batch)
         
         clear_memory()
