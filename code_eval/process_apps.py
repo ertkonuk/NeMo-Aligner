@@ -19,6 +19,8 @@ for i, x in enumerate(iterator):
             input_output = json.loads(x["input_output"])
         except:
             continue
+        if len(input_output["inputs"]) == 0:
+            continue
         
         fn_name = input_output["fn_name"]
         if fn_name == "__init__":
