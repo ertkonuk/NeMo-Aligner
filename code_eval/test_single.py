@@ -125,7 +125,7 @@ def temp_directory():
         os.chdir(original_dir)
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-def execute_code(entry_point, code, inputs, expected, time_limits, atol, stat, details, progress, debug):
+def execute_code(entry_point, code, inputs, expected, time_limits, atol, stat, details, progress, debug=False):
     unsafe_execute(entry_point, code, inputs, expected, time_limits, atol, stat, details, progress, debug)
 
 @reliability_guard(maximum_memory_bytes=1024*1024*1024*1)
