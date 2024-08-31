@@ -264,7 +264,7 @@ class ReinforceIFEvalTrainer:
                 future, ifeval_rewards, ifeval_mask = self.rm_critic.infer_rm_critic(rollout_batch, self.model, inference_batch["args"])
                 rm_rewards = future.result().detach()
 
-                rewards = self.cfg.ifeval_multiplier * ifeval_rewards + rm_rewards
+                rewards = self.cfg.ifeval_multiplier * ifeval_rewards + self.cfg.rm_multiplier * rm_rewards
                 
                 rollout_batch["rewards"] = rewards
                 rollout_batch["rm_rewards"] = rm_rewards

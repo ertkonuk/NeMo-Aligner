@@ -431,7 +431,7 @@ class CodeEvaluator:
         print(stat, "!!!!!!!!!")
 
         print(len(inputs))
-        return int(all(results))
+        return int(all(details))
 
     
     def task_mask(self, args, device):
