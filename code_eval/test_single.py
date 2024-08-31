@@ -16,7 +16,7 @@ from evalplus.eval.utils import (
     swallow_io,
     time_limit,
 )
-
+from multiprocessing import Array, Value
 import resource
 
 def set_memory_limit(limit_type, maximum_memory_bytes):
@@ -152,11 +152,11 @@ def unsafe_execute(
 
     maximum_memory_bytes = 1 * 1024 * 1024 * 1024
     # reliability_guard(maximum_memory_bytes=maximum_memory_bytes)
-    sys.stdout, sys.stderr = original_stdout, original_stderr
-    os.chdir = original_chdir
-    os.putenv = og_putenv
-    sys.modules["resource"] = og_resource
-    return stat, details
+    # sys.stdout, sys.stderr = original_stdout, original_stderr
+    # os.chdir = original_chdir
+    # os.putenv = og_putenv
+    # sys.modules["resource"] = og_resource
+    # return stat, details
     try:
         with swallow_io():
             exec(code, exec_globals)
@@ -211,7 +211,7 @@ def unsafe_execute(
         sys.modules["resource"] = og_resource
         # Any additional cleanup can go here
 
-    print(stat, details< "code")
+    print(stat, details, "code")
     return stat, details
 
 
@@ -230,15 +230,59 @@ if __name__ == "__main__":
     return d
     '''
 
-    _SUCCESS = 1
-    _FAILED = 0
+    # _SUCCESS = 1
+    # _FAILED = 0
     
-    inputs = [(0,), (1,), (5,)]
-    progress = Value("i", 0)
-    stat = Value("i", _UNKNOWN)
-    details = [False for _ in range(len(inputs))]
+    # inputs = [(0,), (1,), (5,)]
+    # progress = 0
+    # stat = 0
+    # details = [False for _ in range(len(inputs))]
 
     
-    _, y = unsafe_execute(entry_point="fib4", code=code, inputs=inputs, expected=[0, 0, 4], time_limits=[60, 60, 60], atol=1e-6, stat=stat, details=details, progress=progress)
-    print(y)
+    # _, y = unsafe_execute(entry_point="fib4", code=code, inputs=inputs, expected=[0, 0, 4], time_limits=[60, 60, 60], atol=1e-6, stat=stat, details=details, progress=progress)
+    # print(y)
     
+    fn_name = "fib4"
+    inputs = [(0,), (1,), (5,)]
+
+    outputs = [0, 0, 4]
+    progress = 0
+    stat = 0
+    details = [False for _ in range(len(inputs))]
+    details = Array("b", [False for _ in range(len(inputs))])
+    time_limits = [5 for _ in range(len(inputs))]
+
+    # try:
+    #     code = response.split("```python\n")[1].split("```")[0].split("assert")[0].split("# Test")[0].split("# Unit")[0].strip()
+    # except:
+    #     code = response.replace("# Your codes here\n", "").split("```")[0].strip()
+
+    p = multiprocessing.Process(
+    target=execute_code,
+    args=(
+        fn_name,
+        code,
+        inputs,
+        outputs,
+        time_limits,
+        1e-6,
+        stat,
+        details,
+        progress,
+    ),
+    )
+    p.start()
+    timeout = sum(time_limits)
+    p.join(timeout=timeout + 1)
+    if p.is_alive():
+        p.terminate()
+        time.sleep(0.1)
+    if p.is_alive():
+        p.kill()
+        time.sleep(0.1)
+
+    print(stat, "!!!!!!!!!")
+    print(details)
+    result = all(details)
+    print(result)
+    print(len(inputs))
