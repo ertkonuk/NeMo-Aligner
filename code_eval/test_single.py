@@ -139,7 +139,7 @@ def unsafe_execute(
     stat,  # Value
     details,  # Array
     progress,  # Value
-    debug=False
+    debug=True
 ):
     if debug:
         print("Starting execution")
@@ -173,8 +173,10 @@ def unsafe_execute(
                 with TimeLimit(time_limits[i]):
                     with swallow_io():
                         out = fn(*inp)
+                        
                 exp = expected[i]
                 exact_match = out == exp
+                print(out, exp, exact_match)
                 if atol == 0 and is_float(exp):
                     atol = 1e-6  # enforce atol for float comparison
                 if not exact_match and atol != 0:
@@ -185,6 +187,7 @@ def unsafe_execute(
                 else:
                     assert exact_match
             except Exception as e:
+                print(")))", debug)
                 if debug:
                     print(f"Exception during test {i}: {e}")
                 # traceback.print_exc()
@@ -284,5 +287,145 @@ if __name__ == "__main__":
     print(stat, "!!!!!!!!!")
     print(details)
     result = all(details)
+
+    response = '''```python
+# Define the function
+def double_every_other(numbers):
+    # Initialize a variable to keep track of the current position
+    current_position = 0
+
+    # Create a copy of the input list to avoid modifying the original
+    result = numbers[:]
+
+    # Iterate through the list, starting from the left
+    while current_position < len(result):
+        # Double the value at the current position if it's even
+        if result[current_position] % 2 == 0:
+            result[current_position] *= 2
+
+        # Move to the next position
+        current_position += 2
+
+    # Return the modified list
+    return result
+```<|eot_id|>'''
+
+    try:
+        code = response.split("```python\n")[1].split("```")[0].split("assert")[0].split("# Test")[0].split("# Unit")[0].strip()
+    except:
+        code = response.replace("# Your codes here\n", "").split("```")[0].strip()
+    
+    print("-"*50)
+    print(code)
+    print("-"*50)
+
+    fn_name = "double_every_other"
+    inputs = [[[0,1,2]]]
+
+    outputs = [[0,1,4]]
+    progress = 0
+    stat = 0
+    details = [False for _ in range(len(inputs))]
+    details = Array("b", [False for _ in range(len(inputs))])
+    time_limits = [5 for _ in range(len(inputs))]
+
+    # try:
+    #     code = response.split("```python\n")[1].split("```")[0].split("assert")[0].split("# Test")[0].split("# Unit")[0].strip()
+    # except:
+    #     code = response.replace("# Your codes here\n", "").split("```")[0].strip()
+
+    p = multiprocessing.Process(
+    target=execute_code,
+    args=(
+        fn_name,
+        code,
+        inputs,
+        outputs,
+        time_limits,
+        1e-6,
+        stat,
+        details,
+        progress,
+        True
+    ),
+    )
+    p.start()
+    timeout = sum(time_limits)
+    p.join(timeout=timeout + 1)
+    if p.is_alive():
+        p.terminate()
+        time.sleep(0.1)
+    if p.is_alive():
+        p.kill()
+        time.sleep(0.1)
+
+    print(stat, "!!!!!!!!!")
+    print(details, [x for x in details])
+    result = all(details)
+
+    response = '''def sort_array(arr):
+    odds = [num for num in arr if num % 2 != 0]
+    evens = [num for num in arr if num % 2 == 0]
+    sorted_odds = sorted(odds)
+    result = []
+    for num in arr:
+        if num % 2 != 0:
+            result.append(sorted_odds.pop(0))
+        else:
+            result.append(num)
+    return result'''
+
+
+    try:
+        code = response.split("```python\n")[1].split("```")[0].split("assert")[0].split("# Test")[0].split("# Unit")[0].strip()
+    except:
+        code = response.replace("# Your codes here\n", "").split("```")[0].strip()
+    
+    print("-"*50)
+    print(code)
+    print("-"*50)
+
+    fn_name = "sort_array"
+    inputs = [[[5, 3, 2, 4, 1]]]
+
+    outputs = [[1, 3, 2, 4, 5]]
+    progress = 0
+    stat = 0
+    details = [False for _ in range(len(inputs))]
+    details = Array("b", [False for _ in range(len(inputs))])
+    time_limits = [5 for _ in range(len(inputs))]
+
+    # try:
+    #     code = response.split("```python\n")[1].split("```")[0].split("assert")[0].split("# Test")[0].split("# Unit")[0].strip()
+    # except:
+    #     code = response.replace("# Your codes here\n", "").split("```")[0].strip()
+
+    p = multiprocessing.Process(
+    target=execute_code,
+    args=(
+        fn_name,
+        code,
+        inputs,
+        outputs,
+        time_limits,
+        1e-6,
+        stat,
+        details,
+        progress,
+        True
+    ),
+    )
+    p.start()
+    timeout = sum(time_limits)
+    p.join(timeout=timeout + 1)
+    if p.is_alive():
+        p.terminate()
+        time.sleep(0.1)
+    if p.is_alive():
+        p.kill()
+        time.sleep(0.1)
+
+    print(stat, "!!!!!!!!!")
+    print(details, [x for x in details])
+    result = all(details)
     print(result)
-    print(len(inputs))

@@ -20,7 +20,6 @@ for i, x in enumerate(iterator):
         except:
             continue
         if len(input_output["inputs"]) == 0:
-            print("!!!!!!!")
             continue
         
         fn_name = input_output["fn_name"]
@@ -44,14 +43,26 @@ This code block should be in the following format:
 
 {text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>'''
 
-        obj = {"text":prompt,
-        "args":{
-            "task":"coding",
-            "inputs":input_output["inputs"],
-            "outputs":input_output["outputs"],
-            "fn_name":fn_name
-        }}
-        data.append(obj)
+        
+        try:
+            obj = {"text":prompt,
+            "args":{
+                "task":"coding",
+                "inputs":input_output["inputs"],
+                "outputs":[x[0] for x in input_output["outputs"]],
+                "fn_name":fn_name
+            }}
+            data.append(obj)
+        except:
+            obj = {"text":prompt,
+            "args":{
+                "task":"coding",
+                "inputs":input_output["inputs"],
+                "outputs":[x for x in input_output["outputs"]],
+                "fn_name":fn_name
+            }}
+            data.append(obj)
+        
 
 print(len(data))
 random.seed(0)
@@ -60,12 +71,12 @@ random.shuffle(data)
 val = data[:512]
 train = data[512:]
 
-with open("../data/llama3_apps_corrected_train.jsonl", "w") as f:
+with open("../data/llama3_code_train.jsonl", "w") as f:
     for data in train:
         jsonline = json.dumps(data)
         f.write(jsonline + "\n")
 
-with open("../data/llama3_apps_corrected_val.jsonl", "w") as f:
+with open("../data/llama3_code_val.jsonl", "w") as f:
     for data in val:
         jsonline = json.dumps(data)
         f.write(jsonline + "\n")
