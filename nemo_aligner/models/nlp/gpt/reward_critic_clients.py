@@ -418,6 +418,7 @@ class CodeEvaluator:
             stat,
             details,
             progress,
+            False
         ),
         )
         p.start()
