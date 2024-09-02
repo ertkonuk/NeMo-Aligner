@@ -430,7 +430,7 @@ class CodeEvaluator:
             p.kill()
             time.sleep(0.1)
 
-        return int(all(details))
+        return sum(details) / len(details)
 
     
     def task_mask(self, args, device):

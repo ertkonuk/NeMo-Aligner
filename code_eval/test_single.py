@@ -202,7 +202,7 @@ def unsafe_execute(
 
     except Exception as e:
         if debug:
-            print("Error during execution")
+            print(f"Error during execution: {e}")
         traceback.print_exc()
         stat = 1
 
@@ -428,4 +428,5 @@ def double_every_other(numbers):
     print(stat, "!!!!!!!!!")
     print(details, [x for x in details])
     result = all(details)
+    result = sum(details) / len(details)
     print(result)
