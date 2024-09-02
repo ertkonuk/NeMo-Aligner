@@ -430,6 +430,8 @@ class CodeEvaluator:
             p.kill()
             time.sleep(0.1)
 
+        print([x for x in details])
+        print(sum(details) / len(details))
         return sum(details) / len(details)
 
     

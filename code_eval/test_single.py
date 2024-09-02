@@ -214,7 +214,7 @@ def unsafe_execute(
         sys.modules["resource"] = og_resource
         # Any additional cleanup can go here
 
-    print(stat, details, "code")
+    print(stat, [x for x in details], sum(details), "code")
     return stat, details
 
 
@@ -285,7 +285,7 @@ if __name__ == "__main__":
         time.sleep(0.1)
 
     print(stat, "!!!!!!!!!")
-    print(details)
+    print([x for x in details])
     result = all(details)
 
     response = '''```python
