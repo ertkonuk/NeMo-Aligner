@@ -474,6 +474,8 @@ class ReinforceIFEvalTrainer:
                 )
 
                 rollout_size = reinforce_rollout_data["response_tokens"].size(0)
+                if rollout_size % num_to_load_on_each_dp != 0:
+                    break
                 rollout_dataloader_iter = get_iterator_k_split(
                     reinforce_rollout_data, divide(rollout_size, num_to_load_on_each_dp)
                 )
