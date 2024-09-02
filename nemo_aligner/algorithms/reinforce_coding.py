@@ -217,11 +217,11 @@ class ReinforceCodeTrainer:
                     
                     
                     code_rewards, _ = self.evaluator.infer(rollout_batch, self.model, args_duplicated)
-                    clear_memory()
-                    print(code_rewards)
+                    # clear_memory()
+                    # print(code_rewards)
                     # # rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards * self.cfg.ifeval_multiplier
                     # rewards = code_rewards
-                    code_rewards = torch.zeros_like(rollout_batch["prompt_lengths"]).unsqueeze(-1)
+                    # code_rewards = torch.zeros_like(rollout_batch["prompt_lengths"]).unsqueeze(-1)
                     rewards = code_rewards
                     rm_rewards = torch.zeros_like(code_rewards)
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
@@ -263,10 +263,10 @@ class ReinforceCodeTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
 
-                # code_rewards, _ = self.evaluator.infer(rollout_batch, self.model, inference_batch)
+                code_rewards, _ = self.evaluator.infer(rollout_batch, self.model, inference_batch)
                 # print(code_rewards.shape)
-                code_rewards = torch.zeros_like(rollout_batch["prompt_lengths"]).unsqueeze(-1)
-                print(code_rewards.shape)
+                # code_rewards = torch.zeros_like(rollout_batch["prompt_lengths"]).unsqueeze(-1)
+                # print(code_rewards.shape)
                 rewards = code_rewards
                 # rewards = (1 - ifeval_mask) * rm_rewards + ifeval_mask * ifeval_rewards * self.cfg.ifeval_multiplier
                 # rewards = code_rewards
