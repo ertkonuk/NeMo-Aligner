@@ -258,7 +258,7 @@ class ReinforceCodeTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
 
-                code_rewards, _ = self.evaluator.infer(rollout_batch, self.model, inference_batch)
+                code_rewards, _ = self.evaluator.infer(rollout_batch, self.model, inference_batch["args"])
                 rewards = code_rewards
                 rm_rewards = torch.zeros_like(code_rewards)
                 

@@ -392,7 +392,6 @@ class CodeEvaluator:
         fn_name = args["fn_name"]
         inputs = args["inputs"]
 
-        print(type(inputs), inputs)
         if len(inputs) == 0:
             return 0
         outputs = args["outputs"]
