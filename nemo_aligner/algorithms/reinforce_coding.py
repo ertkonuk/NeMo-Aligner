@@ -218,7 +218,7 @@ class ReinforceCodeTrainer:
                     
                     code_rewards, _ = self.evaluator.infer(rollout_batch, self.model, args_duplicated)
                     rewards = code_rewards
-                    rm_rewards = torch.zeros_like(code_rewards)
+                    rm_rewards = torch.rand_like(code_rewards)
                     init_policy_logprobs = self.model.get_init_policy_logprobs([rollout_batch])[0]
 
                     if "rewards" in current_batch:
@@ -260,7 +260,7 @@ class ReinforceCodeTrainer:
 
                 code_rewards, _ = self.evaluator.infer(rollout_batch, self.model, inference_batch["args"])
                 rewards = code_rewards
-                rm_rewards = torch.zeros_like(code_rewards)
+                rm_rewards = torch.rand_like(code_rewards)
                 
                 rollout_batch["rewards"] = rewards
                 rollout_batch["rm_rewards"] = rm_rewards
