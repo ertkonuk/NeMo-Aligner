@@ -273,6 +273,9 @@ class RemoteGPTRMClient:
 
         return RMFutureResult(rm_future)
 
+def _str_list2numpy(str_list) -> np.ndarray:
+    str_ndarray = np.array(str_list)[..., np.newaxis]
+    return np.char.encode(str_ndarray, "utf-8")
 
 @dataclass
 class RemoteGPTMultitaskClient:
@@ -352,33 +355,21 @@ class RemoteGPTMultitaskClient:
         # Calculate rm rewards (needs reformatting)
         reformatted_responses = []
         reformatted_lengths = []
+        texts = []
         for i in range(rollout_batch["response_tokens"].size(0)):
             text = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["response_lengths"][i]].tolist())
             user_text, assistant_text = extract_dialogue_helpsteer(text + "\n<extra_id_1>")
+            print(text)
+            print("-*|"*100)
             text = chat_template(user_text=user_text, assistant_text=assistant_text, template="HS2")
-            text_ids = model.tokenizer.text_to_ids(response) 
-            
-            reformatted_responses.append(text_ids + [0] * (og_seq_length - len(text_ids)))
-            reformatted_lengths.append([len(text_ids)])
-        
-        response_tokens = torch.Tensor(reformatted_responses).long()
+            print(text)
+            print("|||"*100)
+            texts.append(text)
 
-        if self.pad_to_length is not None:
-            assert (
-                og_seq_length <= self.pad_to_length
-            ), f"original shape before padding {og_seq_length} is higher than {self.pad_to_length}"
-            response_tokens = torch.nn.functional.pad(
-                response_tokens, (0, self.pad_to_length - response_tokens.size(-1)), value=0
-            )
-
-        # send_data = {
-        #     "tokens": response_tokens.numpy(),
-        #     "sequence_lengths": rollout_batch["response_lengths"].unsqueeze(1).cpu().numpy(),
-        # }
         send_data = {
-            "tokens": response_tokens.numpy(),
-            "sequence_lengths": np.array(reformatted_lengths),
-        }
+            "sentences": _str_list2numpy(texts),
+            }
+
 
         rm_future = run_if_model_parallel_src(
             self.communicator.send_data_to_server, server_name=self.cfg.reward_model.name, data=send_data
