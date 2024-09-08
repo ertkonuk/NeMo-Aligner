@@ -332,7 +332,8 @@ class RemoteGPTMultitaskClient:
 
     
     def task_mask(self, args, device):
-        mask = torch.tensor([1 if arg["task"] in ["ifeval", "gsm8k", "coding"] else 0 for arg in args], device=device).float()
+        # mask = torch.tensor([1 if arg["task"] in ["ifeval", "gsm8k", "coding"] else 0 for arg in args], device=device).float()
+        mask = torch.tensor([1 if arg["task"] in ["ifeval"] else 0 for arg in args], device=device).float()
         return mask.unsqueeze(-1)
 
     def infer_rm_critic(self, rollout_batch, model, args):
@@ -358,12 +359,12 @@ class RemoteGPTMultitaskClient:
         texts = []
         for i in range(rollout_batch["response_tokens"].size(0)):
             text = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["response_lengths"][i]].tolist())
+            if ifeval_mask[i]:
+                text = "\n<extra_id_2>"
+                texts.append(text)
+                continue
             user_text, assistant_text = extract_dialogue_helpsteer(text + "\n<extra_id_1>")
-            print(text)
-            print("-*|"*100)
             text = chat_template(user_text=user_text, assistant_text=assistant_text, template="HS2")
-            print(text)
-            print("|||"*100)
             texts.append(text)
 
         send_data = {
@@ -375,4 +376,4 @@ class RemoteGPTMultitaskClient:
             self.communicator.send_data_to_server, server_name=self.cfg.reward_model.name, data=send_data
         )
 
-        return RMFutureResult(rm_future), ifeval_rewards, None
+        return RMFutureResult(rm_future), ifeval_rewards, ifeval_mask
