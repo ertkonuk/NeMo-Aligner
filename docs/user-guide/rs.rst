@@ -7,7 +7,7 @@ Model Alignment by Rejection Sampling
 
 In this tutorial, we will go through the process of aligning a NeMo framework model using rejection sampling. These can be models such as LLaMa2 or Mistral. Our scripts will work the same way.
 
-RLHF is usually preceded by a Supervised Fine-Tuning (SFT). We should first follow the :ref:`Prerequisite guide <prerequisite>` and the :ref:`SFT guide <sft>`. After obtaining the SFT model, we will also need to train a reward model as in :ref:`PPO guide <ppo>`. We will use the rejection sampling algorithm on the `Anthropic-HH-RLHF <https://huggingface.co/datasets/Anthropic/hh-rlhf>`__ dataset.
+Rejection Sampling is usually preceded by a Supervised Fine-Tuning (SFT). We should first follow the :ref:`Prerequisite guide <prerequisite>` and the :ref:`SFT guide <sft>`. After obtaining the SFT model, we will also need to train a reward model as in :ref:`PPO guide <ppo>`. We will use the rejection sampling algorithm on the `Anthropic-HH-RLHF <https://huggingface.co/datasets/Anthropic/hh-rlhf>`__ dataset.
 
 Rejection Sampling Training
 ############
@@ -99,10 +99,10 @@ The RS Actor training job contains the master controller that makes the HTTP cal
 
 The above launches the initial and actor server on 1 node with 8 GPUs
 
-Launching Both Servers for RLHF training
+Launching Both Servers for Rejection Sampling training
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-You can use slurm to launch the 2 jobs and get them to coordinate together in a full RLHF job via the following:
+You can use slurm to launch the 2 jobs and get them to coordinate together in a full Rejection Sampling job via the following:
 
 .. code-block:: bash 
 

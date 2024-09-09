@@ -33,7 +33,7 @@
    DPO is a simpler alignment method compared to RLHF. DPO introduces a novel parameterization of the reward model in RLHF. This parameterization allows us to extract the corresponding optimal policy.
 
 :ref:`Model Alignment by Rejection Sampling (RS) <model-aligner-rs>`
-   RS is a simple online alignment algorithm. In RS, the policy model generates several responses. These responses are assigned a scores by the reward model, and the highest scoring responses are used for SFT. 
+   RS is a simple online alignment algorithm. In RS, the policy model generates several responses. These responses are assigned a score by the reward model, and the highest scoring responses are used for SFT. 
 
 :ref:`Fine-tuning Stable Diffusion with DRaFT+ <model-aligner-draftp>`
    DRaFT+ is an algorithm for fine-tuning text-to-image generative diffusion models by directly backpropagating through a reward model which alleviates the mode collapse issues from DRaFT algorithm and improves diversity through regularization. 
