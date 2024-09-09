@@ -55,7 +55,6 @@ class MegatronGPTRSModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGenera
         super().__init__(cfg, trainer=trainer)
         self.automatic_optimization = False
 
-        self.init_policy_state_dict = None
         self.distributed_adam_offload_manager = None
 
         # length parameters for generation
@@ -104,6 +103,7 @@ class MegatronGPTRSModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGenera
 
             parallel_logits = model(batch["tokens"], batch["position_ids"], batch["attention_mask"], labels=None,)
 
+            # TODO: This loss depends on the mbs, which is can lead to inconsistencies. See https://github.com/NVIDIA/NeMo/issues/8343.
             def loss_func(parallel_logits):
                 mask = batch["mask"]
                 tokens = batch["tokens"]
