@@ -178,7 +178,7 @@ class RSTrainer:
                         current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
 
-                    rewards = self.rm.infer_rm(rollout_batch).result().detach()                    
+                    rewards = rollout_batch["response_lengths"].unsqueeze(-1).float()                   
                     if "rewards" in current_batch:
                         current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
                     else:
@@ -193,7 +193,7 @@ class RSTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch)
 
-                rewards = self.rm.infer_rm(rollout_batch).result().detach()           
+                rewards = rollout_batch["response_lengths"].unsqueeze(-1).float()         
                 rollout_batch["rewards"] = rewards
                 rollout_batches.append(rollout_batch)
                 
