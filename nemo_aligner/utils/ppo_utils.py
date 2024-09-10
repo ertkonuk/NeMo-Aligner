@@ -16,7 +16,7 @@
 
 import torch
 from nemo_aligner.utils.utils import masked_mean
-
+import operator
 
 def calculate_advantages_and_returns(values, rewards, discount_factor, gae_lambda, mask=None):
     """calculate the per token advantages and returns for the entire sequence
@@ -99,7 +99,7 @@ def select_topk(batch, num_select=1):
     for i in range(len(unique_prompts)):
         prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
         sorted_idx = zip(prompt_idx, batch["rewards"][(batch["prompt_tokens"] == unique_prompts[i]).all(1)])
-        sorted_idx = sorted(sorted_idx, key=lambda x: x[1])
+        sorted_idx = sorted(sorted_idx, key=operator.itemgetter(1))
         selected_idx += [x[0].item() for x in sorted_idx[-1 * num_select :]]
 
     selected_batch = {k: batch[k][selected_idx] for k in batch.keys()}

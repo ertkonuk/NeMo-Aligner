@@ -55,7 +55,7 @@ class RSTrainer:
         generation_iter,
         duplicate_prompts,
         num_select,
-        rm_critic,
+        rm,
     ):
         self.cfg = cfg
         self.model = model
@@ -68,7 +68,7 @@ class RSTrainer:
         self.generation_iter = generation_iter
         self.duplicate_prompts = duplicate_prompts
         self.num_select = num_select
-        self.rm_critic = rm_critic
+        self.rm = rm
 
         # this timer checks if we should stop training
         self.run_timer = run_timer
@@ -98,7 +98,7 @@ class RSTrainer:
         """generate rs specific data for training
         """
         rs_rollout_data = defaultdict(list)
-        rs_rollout_metrics = defaultdict(lambda: 0)
+        rs_rollout_metrics = defaultdict(int)
         num_samples = 0
 
         def post_process_tensor(tensor):
@@ -158,14 +158,14 @@ class RSTrainer:
                 inference_batch_duplicated = {
                     'text':torch.concatenate([inference_batch['text']] * self.duplicate_prompts, dim=0), #input text padded to prompt_llen + max_response length
                     'length':torch.concatenate([inference_batch['length']] * self.duplicate_prompts, dim=0),
-                    'attention_mask':inference_batch['attention_mask'],
+                    'attention_mask':inference_batch['attention_mask'], # Lower trianagular mask, same for ever sample in the batch
                     'loss_mask':torch.concatenate([inference_batch['loss_mask']] * self.duplicate_prompts, dim=0),
                     'position_ids':torch.concatenate([inference_batch['position_ids']] * self.duplicate_prompts, dim=0),
                 }
                 for _ in range(self.generation_iter):
                     
                     if current_batch is None:
-                        rollout_batch = self.model.infer(inference_batch_duplicated) # Note that critic mbs has to be set correctly
+                        rollout_batch = self.model.infer(inference_batch_duplicated)
                         current_batch = rollout_batch
                         current_batch["prompt_tokens"] = inference_batch_duplicated["text"]
                     else:
@@ -178,7 +178,7 @@ class RSTrainer:
                         current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
                         current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
 
-                    rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()                    
+                    rewards = self.rm.infer_rm(rollout_batch).result().detach()                    
                     if "rewards" in current_batch:
                         current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
                     else:
@@ -191,9 +191,9 @@ class RSTrainer:
 
         else:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
-                rollout_batch = self.model.infer(inference_batch) # Here we meed to get the prompts as well
+                rollout_batch = self.model.infer(inference_batch)
 
-                rewards = self.rm_critic.infer_rm_critic(rollout_batch).result().detach()           
+                rewards = self.rm.infer_rm(rollout_batch).result().detach()           
                 rollout_batch["rewards"] = rewards
                 rollout_batches.append(rollout_batch)
                 
@@ -467,11 +467,7 @@ class RSTrainer:
         monitor_candidates = {k: torch.tensor(v, dtype=torch.int32) for k, v in self.state_dict().items()}
         monitor_candidates.update(extra_candidates)
 
-        # future = self.rm_critic.save()
-
         self.ckpt_callback.custom_save(monitor_candidates=monitor_candidates, is_train_end=is_train_end)
-
-        # future.result()
 
         self.model.finish_training()
 

@@ -156,7 +156,7 @@ def main(cfg) -> None:
 
     logger.log_hyperparams(OmegaConf.to_container(cfg))
 
-    rm_critic = RemoteGPTRMClient(cfg.remote_critic_rm)
+    rm = RemoteGPTRMClient(cfg.remote_rm)
     timer = Timer(cfg.exp_manager.get("max_time_per_run"))
 
     rs_trainer = RSTrainer(
@@ -166,7 +166,7 @@ def main(cfg) -> None:
         scheduler=scheduler,
         train_dataloader=train_dataloader,
         val_dataloader=val_dataloader,
-        rm_critic=rm_critic,
+        rm=rm,
         logger=logger,
         ckpt_callback=ckpt_callback,
         run_timer=timer,
