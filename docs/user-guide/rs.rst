@@ -7,7 +7,7 @@ Model Alignment by Rejection Sampling
 
 In this tutorial, we will go through the process of aligning a NeMo framework model using rejection sampling. These can be models such as LLaMa2 or Mistral. Our scripts will work the same way.
 
-RLHF is usually preceded by a Supervised Fine-Tuning (SFT). We should first follow the :ref:`Prerequisite guide <prerequisite>` and the :ref:`SFT guide <sft>`. After obtaining the SFT model, we will also need to train a reward model as in :ref:`PPO guide <ppo>`. We will use the rejection sampling algorithm on the `Anthropic-HH-RLHF <https://huggingface.co/datasets/Anthropic/hh-rlhf>`__ dataset.
+Rejection Sampling is usually preceded by a Supervised Fine-Tuning (SFT). We should first follow the :ref:`Prerequisite guide <prerequisite>` and the :ref:`SFT guide <sft>`. After obtaining the SFT model, we will also need to train a reward model as in :ref:`PPO guide <ppo>`. We will use the rejection sampling algorithm on the `Anthropic-HH-RLHF <https://huggingface.co/datasets/Anthropic/hh-rlhf>`__ dataset.
 
 Rejection Sampling Training
 ############
@@ -99,10 +99,10 @@ The RS Actor training job contains the master controller that makes the HTTP cal
 
 The above launches the initial and actor server on 1 node with 8 GPUs
 
-Launching Both Servers for RLHF training
+Launching Both Servers for Rejection Sampling training
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-You can use slurm to launch the 2 jobs and get them to coordinate together in a full RLHF job via the following:
+You can use slurm to launch the 2 jobs and get them to coordinate together in a full Rejection Sampling job via the following:
 
 .. code-block:: bash 
 
@@ -219,12 +219,12 @@ You can use slurm to launch the 2 jobs and get them to coordinate together in a 
 
    wait
 
-The above script runs the reward model critic server on 1 node and the actor on 1 node.
+The above script runs the reward model server on 1 node and the actor on 1 node.
 
 It is important to launch all jobs with ``&`` after the srun command, to ensure they do not block each other. 
 
 .. note::
-   Make sure to change the critic arg ``trainer.rs.inference_micro_batch_size`` such that ``trainer.rs.inference_micro_batch_size * DP size <= model.rs.rollout_micro_batch_size``.
+   Make sure to change the reward model arg ``trainer.rs.inference_micro_batch_size`` such that ``trainer.rs.inference_micro_batch_size * DP size <= model.rs.rollout_micro_batch_size``.
 
 RS Results
 %%%%%%%%%%%
