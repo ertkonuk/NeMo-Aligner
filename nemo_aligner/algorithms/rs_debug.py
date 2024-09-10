@@ -37,7 +37,7 @@ def compute_num_rollout_microbatches(dataloader):
     )
 
 
-class RSTrainer:
+class RSDebugger:
     """Trainer to coordinate RS training
     """
 
@@ -55,7 +55,6 @@ class RSTrainer:
         generation_iter,
         duplicate_prompts,
         num_select,
-        rm,
     ):
         self.cfg = cfg
         self.model = model
@@ -68,7 +67,6 @@ class RSTrainer:
         self.generation_iter = generation_iter
         self.duplicate_prompts = duplicate_prompts
         self.num_select = num_select
-        self.rm = rm
 
         # this timer checks if we should stop training
         self.run_timer = run_timer
