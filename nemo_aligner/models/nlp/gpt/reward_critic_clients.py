@@ -77,7 +77,14 @@ def extract_dialogue_helpsteer(text):
     
     return user_text, assistant_text
 
-
+def extract_dialogue_llama(text):
+    user_pattern = r'<\|eot_id\|><\|start_header_id\|>user<\|end_header_id\|>\n\n(.*?)<\|eot_id\|>'
+    assistant_pattern = r'<\|eot_id\|><\|start_header_id\|>assistant<\|end_header_id\|>\n\n(.*?)<\|eot_id\|>'
+    
+    user_text = re.findall(user_pattern, text, re.DOTALL)
+    assistant_text = re.findall(assistant_pattern, text, re.DOTALL)
+    
+    return user_text, assistant_text
 
 
 def get_future_result(future, *keys):
@@ -363,8 +370,10 @@ class RemoteGPTMultitaskClient:
                 text = "\n<extra_id_2>"
                 texts.append(text)
                 continue
-            user_text, assistant_text = extract_dialogue_helpsteer(text + "\n<extra_id_1>")
+            user_text, assistant_text = extract_dialogue_llama(text + "<\|eot_id\|>")
             text = chat_template(user_text=user_text, assistant_text=assistant_text, template="HS2")
+            print(text)
+            print("-"*80)
             texts.append(text)
 
         send_data = {
