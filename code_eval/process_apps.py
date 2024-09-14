@@ -37,11 +37,7 @@ This code block should be in the following format:
 ```python
 # Your codes here
 ```"""
-        prompt = f'''<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-{text}<|eot_id|><|start_header_id|>assistant<|end_header_id|>'''
+        prompt = f'''<extra_id_0>System\n\n<extra_id_1>User\n{text}\n<extra_id_1>Assistant\n'''
 
         
         try:
@@ -71,12 +67,12 @@ random.shuffle(data)
 val = data[:512]
 train = data[512:]
 
-with open("../data/llama3_code_train.jsonl", "w") as f:
+with open("../data/minitron_code_train.jsonl", "w") as f:
     for data in train:
         jsonline = json.dumps(data)
         f.write(jsonline + "\n")
 
-with open("../data/llama3_code_val.jsonl", "w") as f:
+with open("../data/minitron_code_val.jsonl", "w") as f:
     for data in val:
         jsonline = json.dumps(data)
         f.write(jsonline + "\n")
