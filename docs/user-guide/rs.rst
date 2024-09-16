@@ -36,16 +36,13 @@ To launch the server:
 
    RESULTS_DIR="critic_results_dir"
 
-   export PYTHONPATH="${NEMO_RLHF_DIR}:${PYTHONPATH}" \
+   export PYTHONPATH="${GPFS}:${PYTHONPATH}" \
    && export HYDRA_FULL_ERROR=1 \
    && python -u examples/nlp/gpt/serve_reward_model.py \
-      --config-path=${CRITIC_CONFIG_PATH} \
-      --config-name=${CRITIC_CONFIG_NAME} \
       trainer.num_nodes=1 \
       trainer.devices=8 \
       ++model.tensor_model_parallel_size=4 \
-      rm_model_file=${RM_NEMO_FILE} \
-      inference.port=${CRITIC_PORT}
+      rm_model_file=${RM_NEMO_FILE}
 
 
 The above example launches the reward model server on 8 gpus and 1 node. Please make sure to change ``trainer.devices``, ``trainer.num_nodes`` depending on your model size and scale. Aligner will work on any scale. Also make sure to tune the `trainer.rs.inference_micro_batch_size` argument, this sets how big of a batch the RS actor is allowed to send to the critic per DP rank.
@@ -62,18 +59,21 @@ The RS Actor training job contains the master controller that makes the HTTP cal
    VALID_DATA_PATH="/path/to/test_prompts.jsonl"
 
    PRETRAINED_ACTOR_NEMO_FILE="/path/to/sft_checkpoint.nemo"
+   RESULTS_DIR="/path/to/actor_results_dir"
 
-   RESULTS_DIR="actor_results_dir"
+   ACTOR_LR=1e-6
+   NUM_ROLLOUTS=32
+   ACTOR_GBS=32
+   CRITIC_PORT=5555
+   host_critic="$(scontrol show hostnames=$SLURM_JOB_NODELIST_HET_GROUP_0 | head -n1)"
 
-   export PYTHONPATH="${NEMO_RLHF_DIR}:${PYTHONPATH}" \
+   export PYTHONPATH="${GPFS}:${PYTHONPATH}" \
    && export HYDRA_FULL_ERROR=1 \
    && python -u examples/nlp/gpt/train_gpt_rs_actor.py \
-      --config-path=${CONF_DIR} \
-      --config-name=${CONFIG_NAME} \
       "model.data.data_prefix={train: [${TRAIN_DATA_PATH}], validation: [${VALID_DATA_PATH}], test: [${VALID_DATA_PATH}]}" \
-      pretrained_checkpoint.restore_from_path=\"${ACTOR_NEMO_FILE}\" \
+      pretrained_checkpoint.restore_from_path=\"${PRETRAINED_ACTOR_NEMO_FILE}\" \
       exp_manager.checkpoint_callback_params.save_top_k=1 \
-      exp_manager.explicit_log_dir=\"${ACTOR_LOG_DIR}\" \
+      exp_manager.explicit_log_dir=\"${RESULTS_DIR}\" \
       trainer.rs.max_epochs=1 \
       trainer.rs.max_steps=313 \
       trainer.rs.val_check_interval=4 \
@@ -88,8 +88,8 @@ The RS Actor training job contains the master controller that makes the HTTP cal
       model.optim.sched.min_lr=${ACTOR_LR} \
       model.optim.weight_decay=0.01 \
       model.rs.num_rollout_samples=${NUM_ROLLOUTS} \
-      model.rs.rollout_micro_batch_size=8 \
-      model.rs.forward_micro_batch_size=8 \
+      model.rs.rollout_micro_batch_size=16 \
+      model.rs.forward_micro_batch_size=16 \
       model.rs.val_rollout_micro_batch_size=8 \
       model.data.data_impl=jsonl \
       remote_critic_rm.reward_model.ip=${host_critic} \
@@ -135,10 +135,10 @@ You can use slurm to launch the 2 jobs and get them to coordinate together in a 
    CRITIC_OUTFILE="${CRITIC_LOG_DIR}/critic_output_%j_%t.log"
    CRITIC_ERRFILE="${CRITIC_LOG_DIR}/critic_error_%j_%t.err"
    CRITIC_PORT=5567
-   CRITIC_CONFIG_PATH="${NEMO_RLHF_DIR}/examples/nlp/gpt/conf"
+   CRITIC_CONFIG_PATH="${GPFS}/examples/nlp/gpt/conf"
    CRITIC_CONFIG_NAME="inference_rm"
 
-   CONF_DIR="${NEMO_RLHF_DIR}/examples/nlp/gpt/conf"
+   CONF_DIR="${GPFS}/examples/nlp/gpt/conf"
    CONFIG_NAME="gpt_rs_actor"
 
    mkdir -p $CRITIC_LOG_DIR
@@ -147,7 +147,7 @@ You can use slurm to launch the 2 jobs and get them to coordinate together in a 
 
    read -r -d '' cmd_critic_inference <<EOF
    cd ${GPFS} \
-   && export PYTHONPATH="${NEMO_RLHF_DIR}:${PYTHONPATH}" \
+   && export PYTHONPATH="${GPFS}:${PYTHONPATH}" \
    && export HYDRA_FULL_ERROR=1 \
    && python -u examples/nlp/gpt/serve_reward_model.py \
       --config-path=${CRITIC_CONFIG_PATH} \
@@ -182,7 +182,7 @@ You can use slurm to launch the 2 jobs and get them to coordinate together in a 
 
    read -r -d '' cmd_rs <<EOF
    cd ${GPFS} \
-   && export PYTHONPATH="${NEMO_RLHF_DIR}:${PYTHONPATH}" \
+   && export PYTHONPATH="${GPFS}:${PYTHONPATH}" \
    && export HYDRA_FULL_ERROR=1 \
    && python -u examples/nlp/gpt/train_gpt_rs_actor.py \
       --config-path=${CONF_DIR} \
