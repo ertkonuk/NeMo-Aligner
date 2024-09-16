@@ -469,7 +469,7 @@ class CodeEvaluator:
 
         print([x for x in details])
         print(sum(details) / len(details))
-        return int(sum(details) / len(details))
+        return float(sum(details) / len(details))
 
     
     def task_mask(self, args, device):
