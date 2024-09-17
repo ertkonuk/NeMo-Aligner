@@ -77,6 +77,7 @@ def extract_dialogue_helpsteer(text):
 def extract_dialogue_llama(text):
     user_pattern = r'<\|eot_id\|><\|start_header_id\|>user<\|end_header_id\|>\n\n(.*?)<\|eot_id\|>'
     assistant_pattern = r'<\|eot_id\|><\|start_header_id\|>assistant<\|end_header_id\|>\n\n(.*?)<\|eot_id\|>'
+    print(user_pattern, assistant_pattern)
     
     user_text = re.findall(user_pattern, text, re.DOTALL)
     assistant_text = re.findall(assistant_pattern, text, re.DOTALL)
@@ -153,93 +154,6 @@ class SaveFuture(FutureResult):
 
 
 @dataclass
-class RemoteGPTRMCriticClient:
-    cfg: DictConfig
-
-    def __post_init__(self):
-        cfg = self.cfg
-
-        critic_ip_and_port = (cfg.critic.ip, cfg.critic.port)
-        server_dict = {
-            cfg.critic.name.train: critic_ip_and_port,
-            cfg.critic.name.infer: critic_ip_and_port,
-            cfg.critic.name.save: critic_ip_and_port,
-        }
-
-        if not cfg.combine_rm_and_critic_server:
-            server_dict[cfg.reward_model.name] = (cfg.reward_model.ip, cfg.reward_model.port)
-
-        self.communicator = HTTPCommunicator.create_http_communicator_from_dict(server_dict)
-        self.communicator.print_server_dict()
-        self.combine_rm_and_critic_server = self.cfg.combine_rm_and_critic_server
-        self.pad_to_length = self.cfg.pad_to_length
-
-    def infer_rm_critic(self, rollout_batch, model, args):
-        response_tokens = rollout_batch["response_tokens"].cpu()
-        og_seq_length = response_tokens.size(-1)
-
-        
-
-        if self.pad_to_length is not None:
-            assert (
-                og_seq_length <= self.pad_to_length
-            ), f"original shape before padding {og_seq_length} is higher than {self.pad_to_length}"
-            response_tokens = torch.nn.functional.pad(
-                response_tokens, (0, self.pad_to_length - response_tokens.size(-1)), value=0
-            )
-
-        send_data = {
-            "tokens": response_tokens.numpy(),
-            "sequence_lengths": rollout_batch["response_lengths"].unsqueeze(1).cpu().numpy(),
-        }
-
-        critic_future = run_if_model_parallel_src(
-            self.communicator.send_data_to_server, server_name=self.cfg.critic.name.infer, data=send_data,
-        )
-
-        rm_future = None
-        if not self.combine_rm_and_critic_server:
-            rm_future = run_if_model_parallel_src(
-                self.communicator.send_data_to_server, server_name=self.cfg.reward_model.name, data=send_data,
-            )
-
-        return RMCriticFutureResult(critic_future, rm_future, self.combine_rm_and_critic_server, og_seq_length)
-
-    def train(self, ppo_rollout_data):
-        send_data = {}
-
-        func = partial(
-            gather_tensor,
-            dst=parallel_state.get_data_parallel_src_rank(),
-            group=parallel_state.get_data_parallel_group(),
-        )
-
-        send_data["tokens"] = func(ppo_rollout_data["response_tokens"], dtype=torch.int64)
-        send_data["returns"] = func(ppo_rollout_data["returns"], dtype=torch.float32)
-        send_data["prev_values"] = func(ppo_rollout_data["values"], dtype=torch.float32)
-        send_data["mask"] = func(ppo_rollout_data["mask"], dtype=torch.float32)
-
-        future = None
-        if torch.distributed.get_rank() == 0:
-            send_data = {k: torch.cat(v, dim=0).detach().cpu().numpy() for k, v in send_data.items()}
-            future = self.communicator.send_data_to_server(
-                server_name=self.cfg.critic.name.train, data=send_data, batching=False
-            )
-
-        return future
-
-    def save(self):
-        save_future = None
-        if torch.distributed.get_rank() == 0:
-            send_data = {"dummy_var": np.array([0])}
-            save_future = self.communicator.send_data_to_server(
-                server_name=self.cfg.critic.name.save, data=send_data, batching=False
-            )
-
-        return SaveFuture(save_future)
-
-
-@dataclass
 class RemoteGPTRMClient:
     cfg: DictConfig
 
@@ -261,17 +175,15 @@ class RemoteGPTRMClient:
         texts = []
         for i in range(rollout_batch["response_tokens"].size(0)):
             text = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["response_lengths"][i]].tolist())
-            if ifeval_mask[i]:
-                text = "\n<extra_id_2>"
-                texts.append(text)
-                continue
-            user_text, assistant_text = extract_dialogue_llama(text + "<\|eot_id\|>")
-            text = chat_template(user_text=user_text, assistant_text=assistant_text, template="HS2")
-            print(text)
+            user_text, assistant_text = extract_dialogue_llama(text + "<|eot_id|>")
+            print(text + "<|eot_id|>")
             print("--"*80)
             print("USER TEXT", user_text)
             print("ASSISTANT_TEXT", assistant_text)
             print("-*"*80)
+            text = chat_template(user_text=user_text, assistant_text=assistant_text, template="HS2")
+            print("**"*80)
+            print(text)
             texts.append(text)
 
         send_data = {
