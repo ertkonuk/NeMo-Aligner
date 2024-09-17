@@ -53,7 +53,7 @@ mp.set_start_method("spawn", force=True)
 @hydra_runner(config_path="conf", config_name="gpt_rs_actor")
 def main(cfg) -> None:
     # Need this to fix bug. Ask Olivier later
-    cfg.model.rs.rollout_micro_batch_size = int(cfg.model.rs.rollout_micro_batch_size)
+    # cfg.model.rs.rollout_micro_batch_size = int(cfg.model.rs.rollout_micro_batch_size)
 
     cfg.model = load_and_override_model_config(cfg.pretrained_checkpoint.restore_from_path, cfg.model)
 
