@@ -77,7 +77,6 @@ def extract_dialogue_helpsteer(text):
 def extract_dialogue_llama(text):
     user_pattern = r'<\|eot_id\|><\|start_header_id\|>user<\|end_header_id\|>\n\n(.*?)<\|eot_id\|>'
     assistant_pattern = r'<\|eot_id\|><\|start_header_id\|>assistant<\|end_header_id\|>\n\n(.*?)<\|eot_id\|>'
-    print(user_pattern, assistant_pattern)
     
     user_text = re.findall(user_pattern, text, re.DOTALL)
     assistant_text = re.findall(assistant_pattern, text, re.DOTALL)
