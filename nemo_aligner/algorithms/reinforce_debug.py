@@ -127,7 +127,7 @@ def compute_num_rollout_microbatches(dataloader):
     )
 
 
-class PPOTrainer:
+class ReinforceDebugger:
     """Trainer to coordinate PPO training
     """
 
@@ -140,7 +140,6 @@ class PPOTrainer:
         train_dataloader_builder,
         val_dataloader_builder,
         collate_fn,
-        rm_critic,
         batch_iterator_cls,
         logger,
         ckpt_callback,
@@ -153,7 +152,6 @@ class PPOTrainer:
         self.train_dataloader_builder = train_dataloader_builder
         self.val_dataloader_builder = val_dataloader_builder
         self.collate_fn = collate_fn
-        self.rm_critic = rm_critic
         self.batch_iterator_cls = batch_iterator_cls
         self.logger = logger
         self.ckpt_callback = ckpt_callback
@@ -168,7 +166,7 @@ class PPOTrainer:
         # the step here is PPO step
         self.step = 0
         # keep track of how many times we optimized the actor
-        self.ppo_optimization_step = 0
+        self.reinforce_optimization_step = 0
 
         # compute `max_steps`
         train_dataloader = self.train_dataloader_builder(consumed_samples=0)
@@ -307,7 +305,7 @@ class PPOTrainer:
                 rollout_batch = self.model.infer(batch)
                 rollout_batches.append(rollout_batch)
                 print("sending to rm")
-                futures.append(self.rm_critic.infer_rm_critic(rollout_batch))
+                futures.append(rollout_batch["response_length"])
 
             timer_metrics["generate"] = self.timer.stop_and_get_time("generate")
 
@@ -347,8 +345,9 @@ class PPOTrainer:
             rm_value_rollout_batches = []
             print("GETTING")
             for future in futures:
-                rewards, values = future.result() if isinstance(future, FutureResult) else future
-                print(rewards.shape, values.shape, rollout_batch["response_lengths"].shape, rollout_batch["response_tokens"].shape)
+                rewards = future
+                values = torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]])
+                print(rewards)
                 rm_value_rollout_batches.append({"rewards": rewards, "values": values})
             timer_metrics["critic_wait"] = self.timer.stop_and_get_time("critic_wait")
             print("GOT FUTURE VAL")
@@ -466,14 +465,14 @@ class PPOTrainer:
                 # Some optimizers like adafactor do not require a LR in their initializer
                 metrics["lr"] = lr
 
-            metrics.update({"loss": loss_mean, "optim_step": self.ppo_optimization_step})
+            metrics.update({"loss": loss_mean, "optim_step": self.reinforce_optimization_step})
             metrics["train_step_time"] = self.timer.stop_and_get_time("train_step_time")
 
             self.logger.log_metrics(
                 metrics, step=self.step, prefix="train_optim/",
             )
 
-            self.ppo_optimization_step += 1
+            self.reinforce_optimization_step += 1
 
         self.model.finish_training()
 
@@ -518,7 +517,6 @@ class PPOTrainer:
 
                     # send critic train
                     clear_memory()
-                    self.rm_critic.train(ppo_rollout_data)
 
                     timer_metrics = all_reduce_dict(timer_metrics, op=torch.distributed.ReduceOp.MAX)
                     timing_metrics.update(timer_metrics)
@@ -606,15 +604,15 @@ class PPOTrainer:
             "step": self.step,
             "consumed_samples": self.consumed_samples,
             "epoch": self.epoch,
-            "ppo_optimization_step": self.ppo_optimization_step,
+            "reinforce_optimization_step": self.reinforce_optimization_step,
         }
 
     def load_state_dict(self, state_dict):
         self.step = state_dict["step"]
         self.consumed_samples = state_dict["consumed_samples"]
-        self.ppo_optimization_step = state_dict["ppo_optimization_step"]
+        self.reinforce_optimization_step = state_dict["ppo_optimization_step"]
 
-        loaded_values = [self.step, self.consumed_samples, self.ppo_optimization_step]
+        loaded_values = [self.step, self.consumed_samples, self.reinforce_optimization_step]
 
         # make sure everyone loaded the same checkpoint as rank 0
         to_broadcast = torch.tensor(loaded_values, dtype=torch.float32, device=torch.cuda.current_device())
@@ -636,11 +634,8 @@ class PPOTrainer:
         monitor_candidates = {k: torch.tensor(v, dtype=torch.int32) for k, v in self.state_dict().items()}
         monitor_candidates.update(extra_candidates)
 
-        future = self.rm_critic.save()
 
         self.ckpt_callback.custom_save(monitor_candidates=monitor_candidates, is_train_end=is_train_end)
-
-        future.result()
 
         self.model.finish_training()
 

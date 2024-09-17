@@ -1,0 +1,132 @@
+[NeMo W 2024-09-16 16:28:18 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/hydra/_internal/defaults_list.py:251: UserWarning: In 'gpt_ppo_critic': Defaults list is missing `_self_`. See https://hydra.cc/docs/1.2/upgrades/1.0_to_1.1/default_composition_order for more information
+      warnings.warn(msg, UserWarning)
+    
+[NeMo W 2024-09-16 16:28:19 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/hydra/_internal/hydra.py:119: UserWarning: Future Hydra versions will no longer change working directory at job runtime by default.
+    See https://hydra.cc/docs/1.2/upgrades/1.1_to_1.2/changes_to_job_working_dir/ for more information.
+      ret = run_job(
+    
+[NeMo W 2024-09-16 16:28:19 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/pytorch_lightning/_graveyard/precision.py:49: The `MixedPrecisionPlugin` is deprecated. Use `pytorch_lightning.plugins.precision.MixedPrecision` instead.
+    
+[NeMo W 2024-09-16 16:28:20 exp_manager:835] Exp_manager is logging to /home/abukharin/debug/NeMo-Aligner/exp/rlhf/dbg/critic_results, but it already exists.
+[NeMo W 2024-09-16 16:28:20 exp_manager:757] There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir :/home/abukharin/debug/NeMo-Aligner/exp/rlhf/dbg/critic_results/checkpoints. Training from scratch.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: context_parallel_size in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: expert_model_parallel_size in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: moe_extended_tp in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: finalize_model_grads_func in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: deterministic_mode in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: use_te_rng_tracker in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_bulk_wgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_bulk_dgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_overlap_ag in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_overlap_rs in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_overlap_rs_dgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_split_ag in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_atomic_ag in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_split_rs in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_atomic_rs in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cross_entropy_loss_fusion in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: overlap_p2p_comm in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: batch_p2p_comm in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: defer_embedding_wgrad_compute in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: wgrad_deferral_limit in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading_num_layers in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: _cpu_offloading_context in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading_activations in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading_weights in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: barrier_with_L1_time in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: context_parallel_size in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: expert_model_parallel_size in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: moe_extended_tp in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: finalize_model_grads_func in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: deterministic_mode in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: use_te_rng_tracker in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_bulk_wgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_bulk_dgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_overlap_ag in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_overlap_rs in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_overlap_rs_dgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_split_ag in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_atomic_ag in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_split_rs in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_atomic_rs in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cross_entropy_loss_fusion in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: overlap_p2p_comm in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: batch_p2p_comm in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: defer_embedding_wgrad_compute in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: wgrad_deferral_limit in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading_num_layers in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: _cpu_offloading_context in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading_activations in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading_weights in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: barrier_with_L1_time in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: context_parallel_size in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: expert_model_parallel_size in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: moe_extended_tp in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: finalize_model_grads_func in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: deterministic_mode in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: use_te_rng_tracker in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_bulk_wgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_bulk_dgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_overlap_ag in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_overlap_rs in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_overlap_rs_dgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_split_ag in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_atomic_ag in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_split_rs in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: tp_comm_atomic_rs in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cross_entropy_loss_fusion in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: overlap_p2p_comm in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: batch_p2p_comm in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: defer_embedding_wgrad_compute in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: wgrad_deferral_limit in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading_num_layers in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: _cpu_offloading_context in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading_activations in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: cpu_offloading_weights in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:1182] The model: MegatronGPTCriticModel() does not have field.name: barrier_with_L1_time in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:510] apply_query_key_layer_scaling is only enabled when using FP16, setting it to False and setting NVTE_APPLY_QK_LAYER_SCALING=0
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: num_query_groups in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: activation_func_fp8_input_store in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: num_moe_experts in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: window_size in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: qk_layernorm in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: test_mode in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: calculate_per_token_loss in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: memory_efficient_layer_norm in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: fp8_wgrad in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: fp8_dot_product_attention in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: fp8_multi_head_attention in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_router_load_balancing_type in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_router_topk in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_grouped_gemm in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_aux_loss_coeff in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_z_loss_coeff in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_input_jitter_eps in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_token_dropping in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_token_dispatcher_type in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_per_layer_logging in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_expert_capacity_factor in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_pad_expert_input_to_capacity in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_token_drop_policy in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: moe_layer_recompute in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: clone_scatter_output_in_embedding in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: disable_parameter_transpose_cache in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_base_model:568] The model: MegatronGPTCriticModel() does not have field.name: enable_cuda_graph in its cfg. Add this key to cfg or config_mapping to make to make it configurable.
+[NeMo W 2024-09-16 16:28:21 megatron_gpt_model:330] megatron_amp_O2 is enabled but transformer-engine is not.
+[NeMo W 2024-09-16 16:28:26 nemo_logging:349] /opt/apex/apex/contrib/optimizers/distributed_fused_adam.py:1488: UserWarning: Only 48.0% of buckets are used. Consider decreasing the bucket_cap_mb argument.
+      warnings.warn(
+    
+[NeMo W 2024-09-16 16:28:26 nemo_logging:349] /usr/local/lib/python3.10/dist-packages/pytorch_lightning/core/optimizer.py:316: The lr scheduler dict contains the key(s) ['monitor', 'reduce_on_plateau'], but the keys will be ignored. You need to call `lr_scheduler.step()` manually in manual optimization.
+    
+[NeMo W 2024-09-16 16:29:55 nemo_logging:349] /home/abukharin/debug/NeMo-Aligner/nemo_aligner/servers/constants.py:27: UserWarning: The torch.cuda.*DtypeTensor constructors are no longer recommended. It's best to use methods such as torch.tensor(data, dtype=*, device='cuda') to create tensors. (Triggered internally at /opt/pytorch/pytorch/torch/csrc/tensor/python_tensor.cpp:79.)
+      return torch.cuda.LongTensor([self])
+    
+[NeMo W 2024-09-16 16:29:55 nemo_logging:349] /opt/apex/apex/contrib/optimizers/distributed_fused_adam.py:2863: UserWarning: Making optimizer state dictionary in deprecated v1 format. Future support is not guaranteed.
+      warnings.warn(
+    
+[NeMo W 2024-09-16 16:30:51 nemo_logging:349] /opt/apex/apex/contrib/optimizers/distributed_fused_adam.py:2863: UserWarning: Making optimizer state dictionary in deprecated v1 format. Future support is not guaranteed.
+      warnings.warn(
+    

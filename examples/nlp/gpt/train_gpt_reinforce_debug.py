@@ -21,14 +21,13 @@ from omegaconf.omegaconf import OmegaConf
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-from nemo_aligner.algorithms.ppo import PPOTrainer
+from nemo_aligner.algorithms.reinforce_debug import ReinforceDebugger
 from nemo_aligner.data.nlp.builders import (
     build_dataloader,
     build_train_valid_test_rlhf_datasets,
     collate_with_pad_to_max_batch,
 )
 from nemo_aligner.models.nlp.gpt.megatron_gpt_ppo_actor import MegatronGPTActorModel
-from nemo_aligner.models.nlp.gpt.reward_critic_clients import RemoteGPTRMCriticClient
 from nemo_aligner.utils import parallel_state
 from nemo_aligner.utils.batch_iterators import get_batch_iterator_cls
 from nemo_aligner.utils.distributed import Timer
@@ -44,7 +43,7 @@ from nemo_aligner.utils.train_script_utils import (
 )
 from nemo_aligner.utils.utils import load_and_override_model_config, load_from_nemo, retrieve_model_state_dict_in_cpu
 
-"""Script to start PPO training"""
+"""Script to start Reinforce training"""
 
 OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 OmegaConf.register_new_resolver("int_div", lambda x, y: x // y, replace=True)
@@ -53,14 +52,14 @@ OmegaConf.register_new_resolver("subtract", lambda x, y: x - y, replace=True)
 mp.set_start_method("spawn", force=True)
 
 
-@hydra_runner(config_path="conf", config_name="gpt_ppo_actor")
+@hydra_runner(config_path="conf", config_name="gpt_reinforce_actor")
 def main(cfg) -> None:
     cfg.model = load_and_override_model_config(cfg.pretrained_checkpoint.restore_from_path, cfg.model)
 
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
-    trainer = resolve_and_create_trainer(cfg, "ppo")
+    trainer = resolve_and_create_trainer(cfg, "reinforce")
 
     exp_manager(trainer, cfg.exp_manager)
 
@@ -79,7 +78,7 @@ def main(cfg) -> None:
     init_policy_state_dict = None
 
     # only need this if we are running with inital kl penalty & full-parameter tuning
-    if cfg.trainer.ppo.initial_policy_kl_penalty > 0 and cfg.model.peft.peft_scheme == "none":
+    if cfg.trainer.reinforce.initial_policy_kl_penalty > 0 and cfg.model.peft.peft_scheme == "none":
         init_policy_state_dict = retrieve_model_state_dict_in_cpu(
             ptl_model, megatron_amp_O2=cfg.model.get("megatron_amp_O2", False)
         )
@@ -110,7 +109,7 @@ def main(cfg) -> None:
         tokenizer=ptl_model.tokenizer,
     )
 
-    max_seqlen = cfg.model.ppo.length_params.max_length
+    max_seqlen = cfg.model.reinforce.length_params.max_length
     eos_id = ptl_model.tokenizer.eos_id
 
     # collate fn to pad to the max seq length in the batch
@@ -120,8 +119,8 @@ def main(cfg) -> None:
         build_dataloader,
         cfg=cfg,
         dataset=train_ds,
-        mbs=cfg.model.ppo.rollout_micro_batch_size,
-        gbs=cfg.model.ppo.num_rollout_samples,
+        mbs=cfg.model.reinforce.rollout_micro_batch_size,
+        gbs=cfg.model.reinforce.num_rollout_samples,
         collate_fn=collate_fn,
         load_gbs=False,
     )
@@ -130,8 +129,8 @@ def main(cfg) -> None:
         build_dataloader,
         cfg=cfg,
         dataset=validation_ds,
-        mbs=cfg.model.ppo.val_rollout_micro_batch_size,
-        gbs=cfg.model.ppo.num_val_samples,
+        mbs=cfg.model.reinforce.val_rollout_micro_batch_size,
+        gbs=cfg.model.reinforce.num_val_samples,
         collate_fn=collate_fn,
         load_gbs=False,
         use_random_sampler=False,
@@ -158,21 +157,19 @@ def main(cfg) -> None:
 
     logger.log_hyperparams(OmegaConf.to_container(cfg))
 
-    rm_critic = RemoteGPTRMCriticClient(cfg.remote_critic_rm)
     timer = Timer(cfg.exp_manager.get("max_time_per_run"))
 
-    batch_iterator_cfg = cfg.trainer.ppo.get("batch_iterator", {})
+    batch_iterator_cfg = cfg.trainer.reinforce.get("batch_iterator", {})
     batch_iterator_cls = get_batch_iterator_cls(batch_iterator_cfg)
 
-    ppo_trainer = PPOTrainer(
-        cfg=cfg.trainer.ppo,
+    reinforce_trainer = ReinforceDebugger(
+        cfg=cfg.trainer.reinforce,
         model=ptl_model,
         optimizer=optimizer,
         scheduler=scheduler,
         train_dataloader_builder=train_dataloader_builder,
         val_dataloader_builder=val_dataloader_builder,
         collate_fn=collate_fn,
-        rm_critic=rm_critic,
         batch_iterator_cls=batch_iterator_cls,
         logger=logger,
         ckpt_callback=ckpt_callback,
@@ -180,19 +177,9 @@ def main(cfg) -> None:
     )
 
     if custom_trainer_state_dict is not None:
-        ppo_trainer.load_state_dict(custom_trainer_state_dict)
-
-    print("Begin Training")
-    ppo_trainer.fit()
-
-    # Note: The main loop creates multiple HTTPCommunicators which own a
-    # pytriton.client.FuturesModelClient. At the end of the loop, we manually
-    # close all FuturesModelClients since we do not use the context manager
-    # syntax. This guarantees all dangling threads are no longer blocking.
-    # `atexit` does not suffice since the registered cleanup function can be
-    # queued behind another blocking atexit registered function.
-    # TODO: utilize context managers to avoid manual cleanup
-    rm_critic.communicator.close()
+        reinforce_trainer.load_state_dict(custom_trainer_state_dict)
+    
+    reinforce_trainer.fit()
 
 
 if __name__ == "__main__":
