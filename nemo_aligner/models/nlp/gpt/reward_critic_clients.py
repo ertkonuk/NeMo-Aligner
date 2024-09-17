@@ -258,18 +258,26 @@ class RemoteGPTRMClient:
         
         og_seq_length = response_tokens.size(-1)
 
-        if self.pad_to_length is not None:
-            assert (
-                og_seq_length <= self.pad_to_length
-            ), f"original shape before padding {og_seq_length} is higher than {self.pad_to_length}"
-            response_tokens = torch.nn.functional.pad(
-                response_tokens, (0, self.pad_to_length - response_tokens.size(-1)), value=0
-            )
+        texts = []
+        for i in range(rollout_batch["response_tokens"].size(0)):
+            text = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["response_lengths"][i]].tolist())
+            if ifeval_mask[i]:
+                text = "\n<extra_id_2>"
+                texts.append(text)
+                continue
+            user_text, assistant_text = extract_dialogue_llama(text + "<\|eot_id\|>")
+            text = chat_template(user_text=user_text, assistant_text=assistant_text, template="HS2")
+            print(text)
+            print("--"*80)
+            print("USER TEXT", user_text)
+            print("ASSISTANT_TEXT", assistant_text)
+            print("-*"*80)
+            texts.append(text)
 
         send_data = {
-            "tokens": response_tokens.numpy(),
-            "sequence_lengths": rollout_batch["response_lengths"].unsqueeze(1).cpu().numpy(),
-        }
+            "sentences": _str_list2numpy(texts),
+            }
+
 
         rm_future = run_if_model_parallel_src(
             self.communicator.send_data_to_server, server_name=self.cfg.reward_model.name, data=send_data
@@ -358,8 +366,6 @@ class RemoteGPTMultitaskClient:
         ifeval_rewards = torch.tensor(ifeval_rewards, device=rollout_batch["logprobs"].device).unsqueeze(-1)
 
         # Calculate rm rewards (needs reformatting)
-        reformatted_responses = []
-        reformatted_lengths = []
         texts = []
         for i in range(rollout_batch["response_tokens"].size(0)):
             text = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["response_lengths"][i]].tolist())
