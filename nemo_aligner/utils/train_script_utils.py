@@ -27,7 +27,7 @@ from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.utils import logging
 from nemo.utils.exp_manager import NeMoModelCheckpoint
 from nemo_aligner.utils.utils import custom_save_ckpt_func, extract_value_from_ckpt
-
+from megatron.core.utils import divide
 """Utilities for example scripts"""
 
 
@@ -239,14 +239,14 @@ def compute_mbs(num_rollout_samples, rollout_micro_batch_size, num_rollout_per_p
     - duplicate: The number of times to duplicate each prompt
     - generation_iter: number of iterations to run generation for
     
-    if num_rollout_per_prompt * 2 < rollout_micro_batch_size:
+    if num_rollout_per_prompt < rollout_micro_batch_size:
         duplicate = num_rollout_per_prompt
         mbs = rollout_micro_batch_size / num_rollout_per_prompt # We want to fill out the microbatch size with as many prompts as possible
         generation_iter = 1
     else:
-        mbs = 2 # In this case we want to generate more responses than our micro_batch_size, so we have to split the generation up across devices/iterations. However, 2 is the minimum size allowed
-        duplicate = rollout_micro_batch_size / 2
-        generation_iter =  num_rollout_per_prompt / duplicate
+        mbs = 1 # In this case we want to generate more responses than our micro_batch_size, so we have to split the generation up across devices/iterations.
+        duplicate = rollout_micro_batch_size
+        generation_iter =  num_rollout_per_prompt
         
     
     Constraints:
@@ -256,23 +256,20 @@ def compute_mbs(num_rollout_samples, rollout_micro_batch_size, num_rollout_per_p
 
     '''
 
-    if num_rollout_samples % rollout_micro_batch_size != 0:
-        raise Exception("num_rollout_samples must be divisible by rollout_micro_batch_size")
-
-    N = max(1, num_rollout_per_prompt // data_parallel_world_size)
+    N = max(1, divide(num_rollout_per_prompt, data_parallel_world_size))
     if not (rollout_micro_batch_size % N == 0 or N % rollout_micro_batch_size == 0):
         raise Exception("Must have cfg.model.ppo.rollout_micro_batch_size % N == 0 or N % cfg.model.ppo.rollout_micro_batch_size == 0")
     
     if (not num_rollout_per_prompt % data_parallel_world_size == 0) and num_rollout_per_prompt > data_parallel_world_size:
         raise Exception("Must have cfg.model.ppo.num_rollout_per_prompt % parallel_state.get_data_parallel_world_size() == 0")
     
-    if num_rollout_per_prompt * 2 < rollout_micro_batch_size:
-        mbs = int(rollout_micro_batch_size / num_rollout_per_prompt)
+    if num_rollout_per_prompt < rollout_micro_batch_size:
+        mbs = divide(rollout_micro_batch_size, num_rollout_per_prompt)
         generation_iter = 1
         duplicate_prompts = num_rollout_per_prompt
     else:
-        mbs = 2 # minimum we can do
-        duplicate_prompts = int(rollout_micro_batch_size / 2)
-        generation_iter = int(num_rollout_per_prompt / duplicate_prompts)
+        mbs = 1 # minimum we can do
+        duplicate_prompts = rollout_micro_batch_size
+        generation_iter = num_rollout_per_prompt
     
     return mbs, generation_iter, duplicate_prompts, N
