@@ -52,10 +52,7 @@ class HelpsteerTemplate:
 
 
 def chat_template(user_text, assistant_text, template):
-    if "llama" in template:
-        formatter = Llama3Template()
-    else:
-        formatter = HelpsteerTemplate()
+    formatter = HelpsteerTemplate()
     
     text = ""
     for i in range(len(user_text)):
@@ -373,7 +370,10 @@ class RemoteGPTMultitaskClient:
             user_text, assistant_text = extract_dialogue_llama(text + "<\|eot_id\|>")
             text = chat_template(user_text=user_text, assistant_text=assistant_text, template="HS2")
             print(text)
-            print("-"*80)
+            print("--"*80)
+            print("USER TEXT", user_text)
+            print("ASSISTANT_TEXT", assistant_text)
+            print("-*"*80)
             texts.append(text)
 
         send_data = {
