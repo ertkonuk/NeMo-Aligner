@@ -52,8 +52,7 @@ class RSTrainer:
         logger,
         ckpt_callback,
         run_timer,
-        generation_iter,
-        duplicate_prompts,
+        num_rollout_per_prompt,
         num_select,
         rm,
     ):
@@ -65,8 +64,7 @@ class RSTrainer:
         self.val_dataloader = val_dataloader
         self.logger = logger
         self.ckpt_callback = ckpt_callback
-        self.generation_iter = generation_iter
-        self.duplicate_prompts = duplicate_prompts
+        self.num_rollout_per_prompt = num_rollout_per_prompt
         self.num_select = num_select
         self.rm = rm
 
@@ -155,28 +153,29 @@ class RSTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
 
                 current_batch = None
-                inference_batch_duplicated = {
-                    'text':torch.concatenate([inference_batch['text']] * self.duplicate_prompts, dim=0), #input text padded to prompt_llen + max_response length
-                    'length':torch.concatenate([inference_batch['length']] * self.duplicate_prompts, dim=0),
+                inference_batch = {
+                    'text':torch.concatenate([inference_batch['text']], dim=0), #input text padded to prompt_llen + max_response length
+                    'length':torch.concatenate([inference_batch['length']], dim=0),
                     'attention_mask':inference_batch['attention_mask'], # Lower trianagular mask, same for ever sample in the batch
-                    'loss_mask':torch.concatenate([inference_batch['loss_mask']] * self.duplicate_prompts, dim=0),
-                    'position_ids':torch.concatenate([inference_batch['position_ids']] * self.duplicate_prompts, dim=0),
+                    'loss_mask':torch.concatenate([inference_batch['loss_mask']], dim=0),
+                    'position_ids':torch.concatenate([inference_batch['position_ids']], dim=0),
                 }
-                for _ in range(self.generation_iter):
+                
+                for _ in range(self.num_rollout_per_prompt):
                     
                     if current_batch is None:
-                        rollout_batch = self.model.infer(inference_batch_duplicated)
+                        rollout_batch = self.model.infer(inference_batch)
                         current_batch = rollout_batch
-                        current_batch["prompt_tokens"] = inference_batch_duplicated["text"]
+                        current_batch["prompt_tokens"] = inference_batch["text"]
                     else:
-                        rollout_batch = self.model.infer(inference_batch_duplicated)
+                        rollout_batch = self.model.infer(inference_batch)
                         # Need to pad response tokens before concatenating. Response tokens has prompts concatenated with responses.
                         current_batch["response_tokens"], rollout_batch["response_tokens"] = pad_batch(current_batch["response_tokens"], rollout_batch["response_tokens"], self.model.tokenizer.eos_id)
                         
                         current_batch["response_tokens"] = torch.concatenate([current_batch["response_tokens"], rollout_batch["response_tokens"]], dim=0)
                         current_batch["response_lengths"] = torch.concatenate([current_batch["response_lengths"], rollout_batch["response_lengths"]], dim=0)
                         current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
-                        current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch_duplicated["text"]], dim=0)
+                        current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch["text"]], dim=0)
 
                     rewards = rollout_batch["response_lengths"].unsqueeze(-1).float()                   
                     if "rewards" in current_batch:
