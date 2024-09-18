@@ -149,19 +149,23 @@ class RSTrainer:
         """
         rollout_batches = []
         if not is_validation:
-            full_batches = [] # compute metrics over all batches, not just the selected ones
+            full_batches = []  # compute metrics over all batches, not just the selected ones
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
 
                 current_batch = None
                 inference_batch = {
-                    'text':torch.concatenate([inference_batch['text']], dim=0), #input text padded to prompt_llen + max_response length
-                    'length':torch.concatenate([inference_batch['length']], dim=0),
-                    'attention_mask':inference_batch['attention_mask'], # Lower trianagular mask, same for ever sample in the batch
-                    'loss_mask':torch.concatenate([inference_batch['loss_mask']], dim=0),
-                    'position_ids':torch.concatenate([inference_batch['position_ids']], dim=0),
+                    "text": torch.concatenate(
+                        [inference_batch["text"]], dim=0
+                    ),  # input text padded to prompt_llen + max_response length
+                    "length": torch.concatenate([inference_batch["length"]], dim=0),
+                    "attention_mask": inference_batch[
+                        "attention_mask"
+                    ],  # Lower trianagular mask, same for ever sample in the batch
+                    "loss_mask": torch.concatenate([inference_batch["loss_mask"]], dim=0),
+                    "position_ids": torch.concatenate([inference_batch["position_ids"]], dim=0),
                 }
                 for _ in range(self.num_rollout_per_prompt):
-                    
+
                     if current_batch is None:
                         rollout_batch = self.model.infer(inference_batch)
                         current_batch = rollout_batch
@@ -169,14 +173,26 @@ class RSTrainer:
                     else:
                         rollout_batch = self.model.infer(inference_batch)
                         # Need to pad response tokens before concatenating. Response tokens has prompts concatenated with responses.
-                        current_batch["response_tokens"], rollout_batch["response_tokens"] = pad_batch(current_batch["response_tokens"], rollout_batch["response_tokens"], self.model.tokenizer.eos_id)
-                        
-                        current_batch["response_tokens"] = torch.concatenate([current_batch["response_tokens"], rollout_batch["response_tokens"]], dim=0)
-                        current_batch["response_lengths"] = torch.concatenate([current_batch["response_lengths"], rollout_batch["response_lengths"]], dim=0)
-                        current_batch["prompt_lengths"] = torch.concatenate([current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0)
-                        current_batch["prompt_tokens"] = torch.concatenate([current_batch["prompt_tokens"], inference_batch["text"]], dim=0)
+                        current_batch["response_tokens"], rollout_batch["response_tokens"] = pad_batch(
+                            current_batch["response_tokens"],
+                            rollout_batch["response_tokens"],
+                            self.model.tokenizer.eos_id,
+                        )
 
-                    rewards = self.rm.infer_rm(rollout_batch).result().detach()                    
+                        current_batch["response_tokens"] = torch.concatenate(
+                            [current_batch["response_tokens"], rollout_batch["response_tokens"]], dim=0
+                        )
+                        current_batch["response_lengths"] = torch.concatenate(
+                            [current_batch["response_lengths"], rollout_batch["response_lengths"]], dim=0
+                        )
+                        current_batch["prompt_lengths"] = torch.concatenate(
+                            [current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0
+                        )
+                        current_batch["prompt_tokens"] = torch.concatenate(
+                            [current_batch["prompt_tokens"], inference_batch["text"]], dim=0
+                        )
+
+                    rewards = self.rm.infer_rm(rollout_batch).result().detach()
                     if "rewards" in current_batch:
                         current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
                     else:
@@ -191,12 +207,11 @@ class RSTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
                 rollout_batch = self.model.infer(inference_batch)
 
-                rewards = self.rm.infer_rm(rollout_batch).result().detach()           
+                rewards = self.rm.infer_rm(rollout_batch).result().detach()
                 rollout_batch["rewards"] = rewards
                 rollout_batches.append(rollout_batch)
-                
-            return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
 
+            return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(rollout_batches))
 
     def compute_global_rollout_metrics(self, rollout_batches):
         metrics = defaultdict(lambda: 0)

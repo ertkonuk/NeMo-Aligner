@@ -14,9 +14,11 @@
 
 """helper functions for PPO training"""
 
-import torch
-from nemo_aligner.utils.utils import masked_mean
 import operator
+
+import torch
+
+from nemo_aligner.utils.utils import masked_mean
 
 
 def calculate_advantages_and_returns(values, rewards, discount_factor, gae_lambda, mask=None):

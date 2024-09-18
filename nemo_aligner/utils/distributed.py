@@ -399,6 +399,7 @@ def pad_batch(x, y, pad_value):
 
     return x, y
 
+
 def run_distributed_inference(inputs=None, infer_fn=None):
     tokens, lengths = None, None
     dp_rank = parallel_state.get_data_parallel_rank()
