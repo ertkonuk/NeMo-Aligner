@@ -32,7 +32,6 @@ from nemo_aligner.utils.distributed import Timer
 from nemo_aligner.utils.train_script_utils import (
     CustomLoggerWrapper,
     add_custom_checkpoint_callback,
-    compute_mbs,
     extract_optimizer_scheduler_from_ptl_model,
     init_distributed,
     init_peft,
@@ -104,18 +103,11 @@ def main(cfg) -> None:
     # collate fn to pad to the max seq length in the batch
     collate_fn = collate_with_pad_to_max_batch(max_seqlen, eos_id, cfg)
 
-    mbs, generation_iter, duplicate_prompts, N = compute_mbs(
-        num_rollout_samples=cfg.model.rs.num_rollout_samples,
-        rollout_micro_batch_size=cfg.model.rs.rollout_micro_batch_size,
-        num_rollout_per_prompt=cfg.model.rs.num_rollout_per_prompt,
-        data_parallel_world_size=parallel_state.get_data_parallel_world_size(),
-    )
-
     train_dataloader = build_dataloader(
         cfg=cfg,
         dataset=train_ds,
         consumed_samples=consumed_samples,
-        mbs=mbs,
+        mbs=cfg.model.rs.rollout_micro_batch_size,
         gbs=cfg.model.rs.num_rollout_samples,
         collate_fn=collate_fn,
         load_gbs=False,
@@ -167,8 +159,7 @@ def main(cfg) -> None:
         logger=logger,
         ckpt_callback=ckpt_callback,
         run_timer=timer,
-        generation_iter=generation_iter,
-        duplicate_prompts=duplicate_prompts,
+        num_rollout_per_prompt=cfg.model.rs.num_rollout_per_prompt,
         num_select=cfg.model.rs.num_select,
     )
 
