@@ -93,7 +93,7 @@ The RS Actor training job contains the master controller that makes the HTTP cal
       remote_critic_rm.reward_model.ip=${host_critic} \
       remote_critic_rm.reward_model.port=${CRITIC_PORT} \
       model.rs.num_rollout_per_prompt=8 \
-      model.rs.num_select=1
+      model.rs.top_n_rollouts=1
 
 The above launches the initial and actor server on 1 node with 8 GPUs
 
@@ -210,7 +210,7 @@ You can use slurm to launch the 2 jobs and get them to coordinate together in a 
       remote_critic_rm.reward_model.ip=${host_critic} \
       remote_critic_rm.reward_model.port=${CRITIC_PORT} \
       model.rs.num_rollout_per_prompt=8 \
-      model.rs.num_select=1
+      model.rs.top_n_rollouts=1
    EOF
 
    srun --het-group=1 -o $PPO_OUTFILE -e $PPO_ERRFILE --container-image=${CONTAINER} $MOUNTS bash -c "${cmd_rs}" &
