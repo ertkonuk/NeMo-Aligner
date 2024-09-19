@@ -7,7 +7,7 @@ NeMo-Aligner uses custom trainers to coordinate all aspects of training. There a
 2. [DPOTrainer](/nemo_aligner/algorithms/dpo.py): for DPO training.
 3. [CriticServerTrainer](/nemo_aligner/algorithms/critic_server_trainer.py): trains the RL critic via PyTriton requests. It will also run the reward model depending on the configuration.
 4. [PPOTrainer](/nemo_aligner/algorithms/ppo.py): performs the RLHF PPO training, since PPO has components such as the Critic, this trainer will send inference and train requests via [PyTriton](https://github.com/triton-inference-server/pytriton) to the CriticServerTrainer to train and run inference on the critic.
-5. [RSTrainer](/nemo_aligner/algorithms/rs.py): performs the RLHF rejection sampling training. Since RS needs a reward model, this trainer will send inference requests via [PyTriton](https://github.com/triton-inference-server/pytriton) to run inference on the reward model.
+5. [RSTrainer](/nemo_aligner/algorithms/rs.py): performs the Rejection Sampling (RS) training. Since RS needs a reward model, this trainer will send inference requests via [PyTriton](https://github.com/triton-inference-server/pytriton) to run inference on the reward model.
 
 ## Configuration guide
 
