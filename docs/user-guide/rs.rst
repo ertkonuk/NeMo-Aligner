@@ -12,7 +12,7 @@ Rejection Sampling is usually preceded by a Supervised Fine-Tuning (SFT). We sho
 Rejection Sampling Training
 ############
 
-After you have fine-tuned a GPT model using Supervised Fine-Tuning (SFT), and trained a reward model as explained in the preceding section, you can start align the policy using rejection sampling.
+After you have fine-tuned a GPT model using Supervised Fine-Tuning (SFT), and trained a reward model as explained in the preceding section, you can start aligning the policy using rejection sampling.
 
 During rejection sampling training, we conceptually have 2 models interacting with each other:
 
