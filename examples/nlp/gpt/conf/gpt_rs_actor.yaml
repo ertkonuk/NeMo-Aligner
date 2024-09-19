@@ -35,8 +35,8 @@ trainer:
   max_steps: ${.rs.max_steps}
 
 remote_rm:
-  # what to batch the inputs to
-  # set to None if no batching when sending inference to the critic
+  # what to pad the inputs to
+  # set to None if no padding when sending data for reward model inference
   pad_to_length: ${model.encoder_seq_length}
 
   # reward model server
