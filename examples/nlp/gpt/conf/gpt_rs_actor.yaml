@@ -82,8 +82,8 @@ model:
     # memory usage
     forward_micro_batch_size: ${.rollout_micro_batch_size}
 
-    num_rollout_per_prompt: 1 # Number of completions to sample per prompt
-    num_select: 1 # Number of completions to select based on reward and train upon
+    num_rollouts_per_prompt: 4  # Number of completions to sample per prompt
+    top_n_rollouts: 1  # Number of completions to select based on reward and train upon (per prompt)
 
     # val generation mbs
     val_rollout_micro_batch_size: ${.rollout_micro_batch_size}
