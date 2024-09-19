@@ -74,7 +74,7 @@ def extract_dialogue_helpsteer(text):
     
     return user_text, assistant_text
 
-def extract_dialogue_llama2(text):
+def extract_dialogue_llama(text):
     user_pattern = r'<\|start_header_id\|>user<\|end_header_id\|>\n\n(.*?)<\|start_header_id\|>'
     assistant_pattern = r'<\|start_header_id\|>assistant<\|end_header_id\|>\n\n(.*?)<\|start_header_id\|>'
     
