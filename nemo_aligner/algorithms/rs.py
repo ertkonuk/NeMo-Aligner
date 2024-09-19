@@ -160,7 +160,7 @@ class RSTrainer:
                     "length": torch.concatenate([inference_batch["length"]], dim=0),
                     "attention_mask": inference_batch[
                         "attention_mask"
-                    ],  # Lower trianagular mask, same for ever sample in the batch
+                    ],  # Lower triangular mask, same for every sample in the batch
                     "loss_mask": torch.concatenate([inference_batch["loss_mask"]], dim=0),
                     "position_ids": torch.concatenate([inference_batch["position_ids"]], dim=0),
                 }
