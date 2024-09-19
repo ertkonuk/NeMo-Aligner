@@ -14,12 +14,10 @@ Rejection Sampling Training
 
 After you have fine-tuned a GPT model using Supervised Fine-Tuning (SFT), and trained a reward model as explained in the preceding section, you can start aligning the policy using rejection sampling.
 
-During rejection sampling training, we conceptually have 2 models interacting with each other:
+During rejection sampling training, we have two models interacting with each other, which Aligner runs in separate jobs::
 
 #. The Policy Network: This is the model we are training, and it should start from an SFT model.
 #. The Reward Model (RM): This model takes a prompt concatenated with a response as input, and outputs a single scalar value: the reward, which the rejection sampling algorithm will try to maximize.
-
-In the most optimized configuration, Aligner will run the actor and initial policy within the same job and the reward model in a separate job. It will then use cpu offloading to load back the corresponding model when needed.
    
 The next section discusses how to launch each of these two jobs.
 

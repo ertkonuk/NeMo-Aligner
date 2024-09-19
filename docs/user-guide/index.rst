@@ -30,7 +30,7 @@
 :ref:`Model Alignment by SteerLM 2.0 Method <model-aligner-steerlm2>`
    SteerLM 2.0 is an extenstion to SteerLM method that introduces an iterative training procedure to explicitly enforce the generated responses to follow the desired attribute distribution.
 
-:ref:`Model Alignment by Direct Preference Optimisation (DPO) <model-aligner-dpo>`
+:ref:`Model Alignment by Direct Preference Optimization (DPO) <model-aligner-dpo>`
    DPO is a simpler alignment method compared to RLHF. DPO introduces a novel parameterization of the reward model in RLHF. This parameterization allows us to extract the corresponding optimal policy.
 
 :ref:`Model Alignment by Rejection Sampling (RS) <model-aligner-rs>`

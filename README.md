@@ -61,6 +61,7 @@ Alternatively, you can build the NeMo Dockerfile here [NeMo Dockerfile](https://
 ## Future work
 - We will continue improving the stability of the PPO learning phase.
 - Improve the performance of RLHF.
+- Add TRT-LLM inference support for Rejection Sampling.
 
 ## Contribute to NeMo-Aligner
 We welcome community contributions! Please refer to [CONTRIBUTING.md](https://github.com/NVIDIA/NeMo-Aligner/blob/main/CONTRIBUTING.md) for guidelines.

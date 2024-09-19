@@ -153,17 +153,6 @@ class RSTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
 
                 current_batch = None
-                inference_batch = {
-                    "text": torch.concatenate(
-                        [inference_batch["text"]], dim=0
-                    ),  # input text padded to prompt_llen + max_response length
-                    "length": torch.concatenate([inference_batch["length"]], dim=0),
-                    "attention_mask": inference_batch[
-                        "attention_mask"
-                    ],  # Lower triangular mask, same for every sample in the batch
-                    "loss_mask": torch.concatenate([inference_batch["loss_mask"]], dim=0),
-                    "position_ids": torch.concatenate([inference_batch["position_ids"]], dim=0),
-                }
                 for _ in range(self.num_rollout_per_prompt):
 
                     if current_batch is None:
