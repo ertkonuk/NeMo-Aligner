@@ -75,8 +75,8 @@ def extract_dialogue_helpsteer(text):
     return user_text, assistant_text
 
 def extract_dialogue_llama(text):
-    user_pattern = r'<\|eot_id\|><\|start_header_id\|>user<\|end_header_id\|>\n\n(.*?)<\|eot_id\|>'
-    assistant_pattern = r'<\|eot_id\|><\|start_header_id\|>assistant<\|end_header_id\|>\n\n(.*?)<\|eot_id\|>'
+    user_pattern = r'<\|eot_id\|><\|start_header_id\|>user<\|end_header_id\|>\n\n(.*?)<\|start_header_id\|>'
+    assistant_pattern = r'<\|eot_id\|><\|start_header_id\|>assistant<\|end_header_id\|>\n\n(.*?)<\|start_header_id\|>'
     
     user_text = re.findall(user_pattern, text, re.DOTALL)
     assistant_text = re.findall(assistant_pattern, text, re.DOTALL)
@@ -175,6 +175,8 @@ class RemoteGPTRMClient:
         for i in range(rollout_batch["response_tokens"].size(0)):
             text = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["response_lengths"][i]].tolist())
             user_text, assistant_text = extract_dialogue_llama(text + "<|eot_id|>")
+            user_text = [x.replace("<|eot_id|>", "") for x in user_text]
+            assistant_text = [x.replace("<|eot_id|>", "") for x in assistant_text]
             print(text + "<|eot_id|>")
             print("--"*80)
             print("USER TEXT", user_text)
@@ -183,6 +185,7 @@ class RemoteGPTRMClient:
             text = chat_template(user_text=user_text, assistant_text=assistant_text, template="HS2")
             print("**"*80)
             print(text)
+            print("0O0"*60)
             texts.append(text)
 
         send_data = {
