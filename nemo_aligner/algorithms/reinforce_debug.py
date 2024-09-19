@@ -39,6 +39,7 @@ from nemo_aligner.utils.distributed import (
 from nemo_aligner.utils.parallel_state import is_trt_llm_reshard, trt_llm_reshard_region
 from nemo_aligner.utils.ppo_utils import (
     calculate_advantages_and_returns,
+    calculate_rloo_baseline,
     calculate_kl_penalty,
     calculate_ppo_rewards,
     create_mask,
@@ -140,10 +141,12 @@ class ReinforceDebugger:
         train_dataloader_builder,
         val_dataloader_builder,
         collate_fn,
+        rm_critic,
         batch_iterator_cls,
         logger,
         ckpt_callback,
         run_timer,
+        num_rollout_per_prompt
     ):
         self.cfg = cfg
         self.model = model
@@ -155,6 +158,7 @@ class ReinforceDebugger:
         self.batch_iterator_cls = batch_iterator_cls
         self.logger = logger
         self.ckpt_callback = ckpt_callback
+        self.num_rollout_per_prompt = num_rollout_per_prompt
 
         # this timer checks if we should stop training
         self.run_timer = run_timer
@@ -166,7 +170,7 @@ class ReinforceDebugger:
         # the step here is PPO step
         self.step = 0
         # keep track of how many times we optimized the actor
-        self.reinforce_optimization_step = 0
+        self.ppo_optimization_step = 0
 
         # compute `max_steps`
         train_dataloader = self.train_dataloader_builder(consumed_samples=0)
@@ -224,6 +228,10 @@ class ReinforceDebugger:
         )
 
         mask = create_mask(values=values, prompt_lengths=prompt_lengths, response_lengths=response_lengths)
+
+        # Calculate RLOO baseline
+        
+
         advantages, returns = calculate_advantages_and_returns(
             values=values,
             rewards=rewards_with_kl,
@@ -232,9 +240,14 @@ class ReinforceDebugger:
             mask=mask,
         )
 
+        baseline = calculate_rloo_baseline(
+            prompts=rollout_batch["prompt_tokens"],
+            reward=rewards
+        )
         # collect everything we need to train PPO
         ppo_rollout_data["mask"] = mask
         ppo_rollout_data["advantages"] = advantages
+        ppo_rollout_data["baseline"] = baseline
         ppo_rollout_data["prev_logprobs"] = logprobs
         ppo_rollout_data["response_tokens"] = response_tokens
         ppo_rollout_data["is_end"] = is_end
@@ -302,10 +315,18 @@ class ReinforceDebugger:
 
             self.timer.start("generate")
             for batch in batch_iterator:
-                rollout_batch = self.model.infer(batch)
-                rollout_batches.append(rollout_batch)
-                print("sending to rm")
-                futures.append(rollout_batch["response_length"])
+                # Do we need a random seed here?
+                if not is_validation:
+                    for _ in range(self.num_rollout_per_prompt):
+                        rollout_batch = self.model.infer(batch)
+                        rollout_batch["prompt_tokens"] = batch["text"] # Save prompt tokens for rloo
+                        rollout_batches.append(rollout_batch)
+                        futures.append((rollout_batch["response_lengths"].float(), torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]-1])))
+                else:
+                    rollout_batch = self.model.infer(batch)
+                    rollout_batch["prompt_tokens"] = batch["text"] # Save prompt tokens for rloo
+                    rollout_batches.append(rollout_batch)
+                    futures.append((rollout_batch["response_lengths"].float(), torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]-1])))
 
             timer_metrics["generate"] = self.timer.stop_and_get_time("generate")
 
@@ -315,7 +336,7 @@ class ReinforceDebugger:
                 rollout_batch_seq_length=self.cfg.rollout_batch_seq_length,
             )
             global_rollout_batch = unbalanced_local_batch.gather_and_balance_globally()
-        print("Done sending")
+
         padded_rollout_sequence_length = global_rollout_batch["response_tokens"].size(-1)
 
         # the chunking must be outside of the TRT-LLM context because we do logprob calculation in nemo
@@ -343,14 +364,10 @@ class ReinforceDebugger:
         with reshard_context():
             self.timer.start("critic_wait")
             rm_value_rollout_batches = []
-            print("GETTING")
             for future in futures:
-                rewards = future
-                values = torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]])
-                print(rewards)
+                rewards, values = future.result() if isinstance(future, FutureResult) else future
                 rm_value_rollout_batches.append({"rewards": rewards, "values": values})
             timer_metrics["critic_wait"] = self.timer.stop_and_get_time("critic_wait")
-            print("GOT FUTURE VAL")
             unbalanced_rm_value_batch = PPORolloutBatch.from_rollout_batches(
                 rm_value_rollout_batches,
                 eos_id=self.model.tokenizer.eos_id,
@@ -367,8 +384,8 @@ class ReinforceDebugger:
             seed=self.step,
         )
         balanced_local_batch.update(balanced_rm_value_batch)
-
         global_rollout_batch.update(global_rm_value_batch)
+        
         return balanced_local_batch, cpu_dict(self.compute_rollout_metrics(global_rollout_batch)), timer_metrics
 
     def compute_rollout_metrics(self, rollout_batch):
@@ -465,14 +482,14 @@ class ReinforceDebugger:
                 # Some optimizers like adafactor do not require a LR in their initializer
                 metrics["lr"] = lr
 
-            metrics.update({"loss": loss_mean, "optim_step": self.reinforce_optimization_step})
+            metrics.update({"loss": loss_mean, "optim_step": self.ppo_optimization_step})
             metrics["train_step_time"] = self.timer.stop_and_get_time("train_step_time")
 
             self.logger.log_metrics(
                 metrics, step=self.step, prefix="train_optim/",
             )
 
-            self.reinforce_optimization_step += 1
+            self.ppo_optimization_step += 1
 
         self.model.finish_training()
 
@@ -516,7 +533,8 @@ class ReinforceDebugger:
                     timing_metrics["rollout_time"] = self.timer.stop_and_get_time("rollout_time")
 
                     # send critic train
-                    clear_memory()
+                    # clear_memory()
+                    # self.rm_critic.train(ppo_rollout_data)
 
                     timer_metrics = all_reduce_dict(timer_metrics, op=torch.distributed.ReduceOp.MAX)
                     timing_metrics.update(timer_metrics)
@@ -604,15 +622,15 @@ class ReinforceDebugger:
             "step": self.step,
             "consumed_samples": self.consumed_samples,
             "epoch": self.epoch,
-            "reinforce_optimization_step": self.reinforce_optimization_step,
+            "ppo_optimization_step": self.ppo_optimization_step,
         }
 
     def load_state_dict(self, state_dict):
         self.step = state_dict["step"]
         self.consumed_samples = state_dict["consumed_samples"]
-        self.reinforce_optimization_step = state_dict["ppo_optimization_step"]
+        self.ppo_optimization_step = state_dict["ppo_optimization_step"]
 
-        loaded_values = [self.step, self.consumed_samples, self.reinforce_optimization_step]
+        loaded_values = [self.step, self.consumed_samples, self.ppo_optimization_step]
 
         # make sure everyone loaded the same checkpoint as rank 0
         to_broadcast = torch.tensor(loaded_values, dtype=torch.float32, device=torch.cuda.current_device())
@@ -633,7 +651,6 @@ class ReinforceDebugger:
 
         monitor_candidates = {k: torch.tensor(v, dtype=torch.int32) for k, v in self.state_dict().items()}
         monitor_candidates.update(extra_candidates)
-
 
         self.ckpt_callback.custom_save(monitor_candidates=monitor_candidates, is_train_end=is_train_end)
 

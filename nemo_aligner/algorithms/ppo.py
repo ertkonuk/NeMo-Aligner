@@ -348,6 +348,7 @@ class PPOTrainer:
             print("GETTING")
             for future in futures:
                 rewards, values = future.result() if isinstance(future, FutureResult) else future
+                print(rewards.shape, values.shape, "!"*23)
                 print(rewards.shape, values.shape, rollout_batch["response_lengths"].shape, rollout_batch["response_tokens"].shape)
                 rm_value_rollout_batches.append({"rewards": rewards, "values": values})
             timer_metrics["critic_wait"] = self.timer.stop_and_get_time("critic_wait")
