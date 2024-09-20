@@ -222,45 +222,32 @@ class ReinforceDebugger:
             )
         else:
             init_policy_kl = torch.tensor(0, dtype=logprobs.dtype, device=logprobs.device)
-
-        rewards_with_kl = calculate_ppo_rewards(
-            values, rewards, response_lengths, init_policy_kl, self.cfg.initial_policy_kl_penalty
-        )
-
+        
         mask = create_mask(values=values, prompt_lengths=prompt_lengths, response_lengths=response_lengths)
+        init_policy_kl = masked_mean(init_policy_kl, mask, dim=-1)
 
         # Calculate RLOO baseline
-        
-
-        advantages, returns = calculate_advantages_and_returns(
-            values=values,
-            rewards=rewards_with_kl,
-            discount_factor=self.cfg.discount_factor,
-            gae_lambda=self.cfg.gae_lambda,
-            mask=mask,
-        )
+        rewards_with_kl = rewards - self.cfg.initial_policy_kl_penalty * init_policy_kl
 
         baseline = calculate_rloo_baseline(
             prompts=rollout_batch["prompt_tokens"],
-            reward=rewards
+            reward=rewards_with_kl
         )
-        # collect everything we need to train PPO
+        # collect everything we need to train Reinforce
         ppo_rollout_data["mask"] = mask
-        ppo_rollout_data["advantages"] = advantages
         ppo_rollout_data["baseline"] = baseline
+        ppo_rollout_data["rewards"] = rewards_with_kl
         ppo_rollout_data["prev_logprobs"] = logprobs
         ppo_rollout_data["response_tokens"] = response_tokens
         ppo_rollout_data["is_end"] = is_end
-        # for the critic
-        ppo_rollout_data["values"] = values
-        ppo_rollout_data["returns"] = returns
+
 
         # compute metrics
         # these are not global yet
         ppo_rollout_metrics["init_policy_kl"] = (
-            masked_mean(init_policy_kl, mask, dim=-1).sum().item() if self.compute_init_policy_kl else 0
+            init_policy_kl.sum().item() if self.compute_init_policy_kl else 0
         )
-        ppo_rollout_metrics["rewards_with_kl"] = masked_mean(rewards_with_kl, mask, dim=-1).sum().item()
+        ppo_rollout_metrics["rewards_with_kl"] = rewards_with_kl.sum().item()
         ppo_rollout_metrics["num_samples"] = prompt_lengths.size(0)
 
         # now the metrics are global
@@ -269,23 +256,6 @@ class ReinforceDebugger:
         )
         num_samples = ppo_rollout_metrics.pop("num_samples")
         ppo_rollout_metrics = {k: v / num_samples for k, v in ppo_rollout_metrics.items()}
-
-        mask = ppo_rollout_data["mask"]
-        for key in ["advantages", "returns", "values"]:
-            tensor = ppo_rollout_data[key]
-
-            global_mean, global_var = masked_global_mean_var(
-                tensor, mask, group=parallel_state.get_data_parallel_group(),
-            )
-            ppo_rollout_metrics[f"{key}_mean"] = global_mean.item()
-            ppo_rollout_metrics[f"{key}_std"] = global_var.sqrt().item()
-
-        if self.cfg.normalize_advantages:
-            ppo_rollout_data["advantages"] = normalize_tensor(
-                ppo_rollout_data["advantages"],
-                ppo_rollout_data["mask"],
-                group=parallel_state.get_data_parallel_group(),
-            )
 
         return ppo_rollout_data, cpu_dict(ppo_rollout_metrics)
 

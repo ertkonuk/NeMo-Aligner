@@ -115,7 +115,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                     required_keys.update(("response_tokens", "position_ids"))
 
                 if parallel_state.is_pipeline_last_stage():
-                    required_keys.update(("response_tokens", "advantages", "mask", "prev_logprobs", "is_end"))
+                    required_keys.update(("baseline", "rewards", "mask", "is_end"))
 
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
@@ -125,10 +125,12 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
 
             def loss_func(parallel_logits):
                 mask = batch["mask"]
-                advantages = batch["advantages"]
-                prev_log_probs = batch["prev_logprobs"]
                 tokens = batch["response_tokens"]
-                is_end = batch["is_end"]
+                baseline = batch["baseline"]
+                rewards = batch["rewards"]
+
+
+                print("IN LOSS", batch["baseline"].shape, batch["rewards"].shape)
 
                 is_end_mask = mask * is_end.view(-1, 1)
 
@@ -136,42 +138,14 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                     vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True
                 )
 
-                scaled_entropy = torch.tensor(0.0, dtype=parallel_logits.dtype, device=parallel_logits.device)
-                if self.entropy_bonus > 0:
-                    scaled_entropy = calculate_distributed_entropy(parallel_logits, is_end_mask) * self.entropy_bonus
+                reinforce_loss = -1 * curr_log_probs * (rewards - baseline)
+                loss = masked_mean(reinforce_loss, mask)
 
-                # Calculate clipped PPO surrogate loss function.
-                ratios = (curr_log_probs - prev_log_probs).exp()
-                ratios_clamped = ratios.clamp(1.0 - self.ratio_eps, 1.0 + self.ratio_eps)
-
-                loss1 = -advantages * ratios
-                loss2 = -advantages * ratios_clamped
-
-                if is_end_mask.sum() > 0:
-                    actor_loss = masked_mean(torch.max(loss1, loss2), is_end_mask)
-                    loss = actor_loss - scaled_entropy
-                else:
-                    # hack to disable this update since there are no valid tokens
-                    loss = loss1.view(-1)[0] * 0
-
-                with torch.no_grad():
-                    ppo_ratio = masked_mean(ratios.detach(), mask)
-                    ppo_ratio_clamped = masked_mean(ratios_clamped.detach(), mask)
-                    scaled_entropy = scaled_entropy.detach()
-
-                (
-                    reduced_actor_loss,
-                    ppo_ratio,
-                    ppo_ratio_clamped,
-                    scaled_entropy,
-                ) = average_losses_across_data_parallel_group([loss, ppo_ratio, ppo_ratio_clamped, scaled_entropy])
+                reduced_actor_loss = average_losses_across_data_parallel_group([loss])
                 return (
                     loss,
                     {
                         "loss": reduced_actor_loss,
-                        "ppo_ratio": ppo_ratio,
-                        "ppo_ratio_clamped": ppo_ratio_clamped,
-                        "scaled_entropy": scaled_entropy,
                     },
                 )
 
@@ -214,7 +188,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
 
         metrics = {}
 
-        for key in ["loss", "ppo_ratio", "ppo_ratio_clamped", "scaled_entropy"]:
+        for key in ["loss"]:
             if losses_reduced_per_micro_batch:
                 metric_mean = torch.stack(
                     [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
