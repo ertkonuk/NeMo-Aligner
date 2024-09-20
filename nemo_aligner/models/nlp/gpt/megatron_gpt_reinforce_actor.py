@@ -130,7 +130,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 rewards = batch["rewards"]
 
 
-                print("IN LOSS", batch["baseline"].shape, batch["rewards"].shape)
+                print("Advantage", rewards - baseline)
 
                 curr_log_probs = from_parallel_logits_to_logprobs(
                     vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True
