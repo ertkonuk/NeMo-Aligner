@@ -70,35 +70,35 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
         self.distributed_adam_offload_manager = None
 
         # length parameters for generation
-        self._length_params = OmegaConf.to_container(self.cfg.ppo.length_params, resolve=True)
+        self._length_params = OmegaConf.to_container(self.cfg.reinforce.length_params, resolve=True)
         # sampling parameters for generation
-        self._sampling_params = OmegaConf.to_container(self.cfg.ppo.sampling_params, resolve=True)
+        self._sampling_params = OmegaConf.to_container(self.cfg.reinforce.sampling_params, resolve=True)
 
-        self.to_offload_adam_states = self.cfg.ppo.offload_adam_states and self.with_distributed_adam
-        self.entropy_bonus = self.cfg.ppo.entropy_bonus
-        self.ratio_eps = self.cfg.ppo.ratio_eps
-        self.forward_micro_batch_size = self.cfg.ppo.forward_micro_batch_size
+        self.to_offload_adam_states = self.cfg.reinforce.offload_adam_states and self.with_distributed_adam
+        self.entropy_bonus = self.cfg.reinforce.entropy_bonus
+        self.ratio_eps = self.cfg.reinforce.ratio_eps
+        self.forward_micro_batch_size = self.cfg.reinforce.forward_micro_batch_size
 
-        self.use_trtllm_generation = "trt_llm" in self.cfg.ppo and self.cfg.ppo.trt_llm.enable
+        self.use_trtllm_generation = "trt_llm" in self.cfg.reinforce and self.cfg.reinforce.trt_llm.enable
         if self.use_trtllm_generation:
             assert HAVE_TRTLLM, "TRTLLM generation was enabled but TRTLLM was not able to be imported"
             self.trtllm_generate = GPTGenerateTRTLLM(
                 model_cfg=self.cfg,
-                max_generation_length=self.cfg.ppo.length_params.get("max_length", 1024),
-                max_input_len=self.cfg.ppo.trt_llm.get("max_input_len", 1024),
-                max_input_tokens=self.cfg.ppo.trt_llm.get("max_input_tokens", 4096),
-                generation_batch_size=self.cfg.ppo.get("rollout_micro_batch_size", 4),
-                unload_engine_train=self.cfg.ppo.trt_llm.get("unload_engine_train", False),
-                trt_model_type=self.cfg.ppo.trt_llm.get("model_type", "llama"),
-                end_strings=self.cfg.ppo.sampling_params["end_strings"],
-                reshard_model=self.cfg.ppo.trt_llm.get("reshard", False),
-                sample_temperature=self.cfg.ppo.sampling_params["temperature"],
-                sample_top_k=self.cfg.ppo.sampling_params["top_k"],
-                sample_top_p=self.cfg.ppo.sampling_params["top_p"],
-                repetition_penalty=self.cfg.ppo.sampling_params["repetition_penalty"],
-                use_greedy=self.cfg.ppo.sampling_params.get("use_greedy", False),
+                max_generation_length=self.cfg.reinforce.length_params.get("max_length", 1024),
+                max_input_len=self.cfg.reinforce.trt_llm.get("max_input_len", 1024),
+                max_input_tokens=self.cfg.reinforce.trt_llm.get("max_input_tokens", 4096),
+                generation_batch_size=self.cfg.reinforce.get("rollout_micro_batch_size", 4),
+                unload_engine_train=self.cfg.reinforce.trt_llm.get("unload_engine_train", False),
+                trt_model_type=self.cfg.reinforce.trt_llm.get("model_type", "llama"),
+                end_strings=self.cfg.reinforce.sampling_params["end_strings"],
+                reshard_model=self.cfg.reinforce.trt_llm.get("reshard", False),
+                sample_temperature=self.cfg.reinforce.sampling_params["temperature"],
+                sample_top_k=self.cfg.reinforce.sampling_params["top_k"],
+                sample_top_p=self.cfg.reinforce.sampling_params["top_p"],
+                repetition_penalty=self.cfg.reinforce.sampling_params["repetition_penalty"],
+                use_greedy=self.cfg.reinforce.sampling_params.get("use_greedy", False),
                 tokenizer=self.tokenizer,
-                seed=self.cfg.ppo.trt_llm.get("seed", self.cfg.seed),
+                seed=self.cfg.reinforce.trt_llm.get("seed", self.cfg.seed),
             )
 
     # training calls
@@ -131,8 +131,6 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
 
 
                 print("IN LOSS", batch["baseline"].shape, batch["rewards"].shape)
-
-                is_end_mask = mask * is_end.view(-1, 1)
 
                 curr_log_probs = from_parallel_logits_to_logprobs(
                     vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True
@@ -321,7 +319,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
         # sometimes backends like TRT-LLM will generate invalid tokens
         # so we need to also inplace mutate the response_tokens to be within the tokenizer range
         is_valid = verify_is_valid_and_clamp_range_(
-            response_tokens, response_lengths, strategy, self.tokenizer, self.cfg.ppo.sampling_params["end_strings"]
+            response_tokens, response_lengths, strategy, self.tokenizer, self.cfg.reinforce.sampling_params["end_strings"]
         )
 
         rollout_batch = {
