@@ -160,7 +160,7 @@ def main(cfg) -> None:
         ckpt_callback=ckpt_callback,
         run_timer=timer,
         num_rollout_per_prompt=cfg.model.rs.num_rollout_per_prompt,
-        num_select=cfg.model.rs.num_select,
+        num_select=cfg.model.rs.top_n_rollouts,
     )
 
     if custom_trainer_state_dict is not None:
