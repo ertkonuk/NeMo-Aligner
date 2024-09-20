@@ -173,41 +173,6 @@ class ReinforceTrainer:
             rloo = torch.matmul(rloo_mat, regularized_reward[prompt_idx]) / (len(prompt_idx) - 1)
             batch["baseline"][prompt_idx] = rloo
         return batch
-
-    # def get_remax_baseline(self, inference_batch, batch):
-    #     '''
-    #     Function to select the RLOO baseline for each (prompt, response) pair in the batch
-    #     '''
-    #     self.model._sampling_params["use_greedy"] = True
-    #     # Get reward from unique prompts using greedy decoding'
-    #     greedy_batch = self.model.infer(inference_batch) # Note that critic mbs has to be set correctly
-    #     greedy_rewards = self.rm_critic.infer_rm_critic(greedy_batch).result().detach()
-    #     init_policy_logprobs = self.model.get_init_policy_logprobs([greedy_batch])[0]
-
-    #     if self.compute_init_policy_kl:
-    #         init_policy_kl = calculate_kl_penalty(
-    #             log_probs_a=greedy_batch["logprobs"],
-    #             log_probs_b=init_policy_logprobs,
-    #             use_absolute_kl=self.cfg.use_absolute_kl,
-    #         )
-    #     else:
-    #         init_policy_kl = torch.tensor(0, dtype=greedy_batch["logprobs"].dtype, device=greedy_batch["logprobs"].device)
-        
-    #     mask = create_mask(values=greedy_batch["logprobs"], prompt_lengths=greedy_batch["prompt_lengths"], response_lengths=greedy_batch["response_lengths"])
-    #     greedy_batch["mask"] = mask
-
-    #     init_policy_kl = (init_policy_kl * mask).mean(-1).unsqueeze(-1)
-    #     greedy_rewards = greedy_rewards - self.cfg.initial_policy_kl_penalty * init_policy_kl
-    #     unique_prompts = torch.unique(batch["prompt_tokens"], dim=0)
-    #     batch["baseline"] = torch.zeros_like(batch["rewards"])
-    #     for i in range(len(unique_prompts)):
-    #         prompt_idx = torch.arange(len(batch["prompt_tokens"]))[(batch["prompt_tokens"] == unique_prompts[i]).all(1)]
-    #         reward_idx = torch.arange(len(inference_batch["text"]))[(inference_batch["text"] == unique_prompts[i]).all(1)]
-    #         batch["baseline"][prompt_idx] = greedy_rewards[reward_idx][0]
-
-    #     self.model._sampling_params["use_greedy"] = False
-
-    #     return batch
     
     def _run_inference(self, dataloader_iter, num_microbatches, is_validation):
         """this function is run per DP so the metrics need to be computed globally
@@ -217,15 +182,16 @@ class ReinforceTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
 
                 current_batch = None
-                inference_batch_duplicated = {
-                    'text':torch.concatenate([inference_batch['text']] * self.duplicate_prompts, dim=0),
-                    'length':torch.concatenate([inference_batch['length']] * self.duplicate_prompts, dim=0),
-                    'attention_mask':inference_batch['attention_mask'],
-                    'loss_mask':torch.concatenate([inference_batch['loss_mask']] * self.duplicate_prompts, dim=0),
-                    'position_ids':torch.concatenate([inference_batch['position_ids']] * self.duplicate_prompts, dim=0),
-                }
+                # inference_batch_duplicated = {
+                #     'text':torch.concatenate([inference_batch['text']] * self.duplicate_prompts, dim=0),
+                #     'length':torch.concatenate([inference_batch['length']] * self.duplicate_prompts, dim=0),
+                #     'attention_mask':inference_batch['attention_mask'],
+                #     'loss_mask':torch.concatenate([inference_batch['loss_mask']] * self.duplicate_prompts, dim=0),
+                #     'position_ids':torch.concatenate([inference_batch['position_ids']] * self.duplicate_prompts, dim=0),
+                # }
+                inference_batch_duplicated = inference_batch
                 
-                for _ in range(self.generation_iter):
+                for _ in range(self.duplicate_prompts):
                     
                     if current_batch is None:
                         rollout_batch = self.model.infer(inference_batch_duplicated) # Note that critic mbs has to be set correctly

@@ -116,16 +116,16 @@ def main(cfg) -> None:
     # collate fn to pad to the max seq length in the batch
     collate_fn = collate_with_pad_to_max_batch(max_seqlen, eos_id, cfg)
 
-    mbs, generation_iter, duplicate_prompts, N = compute_mbs(num_rollout_samples=cfg.model.reinforce.num_rollout_samples, 
-                                                             rollout_micro_batch_size=cfg.model.reinforce.rollout_micro_batch_size,
-                                                             num_rollout_per_prompt=cfg.model.reinforce.num_rollout_per_prompt, 
-                                                             data_parallel_world_size=parallel_state.get_data_parallel_world_size())
+    # mbs, generation_iter, duplicate_prompts, N = compute_mbs(num_rollout_samples=cfg.model.reinforce.num_rollout_samples, 
+    #                                                          rollout_micro_batch_size=cfg.model.reinforce.rollout_micro_batch_size,
+    #                                                          num_rollout_per_prompt=cfg.model.reinforce.num_rollout_per_prompt, 
+    #                                                          data_parallel_world_size=parallel_state.get_data_parallel_world_size())
 
     train_dataloader = build_dataloader(
         cfg=cfg,
         dataset=train_ds,
         consumed_samples=consumed_samples,
-        mbs=mbs,
+        mbs=cfg.model.reinforce.rollout_micro_batch_size,
         gbs=cfg.model.reinforce.num_rollout_samples,
         collate_fn=collate_fn,
         load_gbs=False,
@@ -177,8 +177,8 @@ def main(cfg) -> None:
         logger=logger,
         ckpt_callback=ckpt_callback,
         run_timer=timer,
-        generation_iter=generation_iter,
-        duplicate_prompts=duplicate_prompts,
+        generation_iter=1,
+        duplicate_prompts=cfg.model.reinforce.num_rollout_samples,
     )
 
     if custom_trainer_state_dict is not None:
