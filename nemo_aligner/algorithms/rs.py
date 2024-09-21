@@ -53,7 +53,7 @@ class RSTrainer:
         ckpt_callback,
         run_timer,
         num_rollout_per_prompt,
-        num_select,
+        top_n_rollouts,
         rm,
     ):
         self.cfg = cfg
@@ -65,7 +65,7 @@ class RSTrainer:
         self.logger = logger
         self.ckpt_callback = ckpt_callback
         self.num_rollout_per_prompt = num_rollout_per_prompt
-        self.num_select = num_select
+        self.top_n_rollouts = top_n_rollouts
         self.rm = rm
 
         # this timer checks if we should stop training
@@ -186,7 +186,7 @@ class RSTrainer:
                         current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
                     else:
                         current_batch["rewards"] = rewards
-                rollout_batch = select_topk(current_batch, self.num_select)
+                rollout_batch = select_topk(current_batch, self.top_n_rollouts)
 
                 rollout_batches.append(rollout_batch)
                 full_batches.append(current_batch)

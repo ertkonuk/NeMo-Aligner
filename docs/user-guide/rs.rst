@@ -14,7 +14,7 @@ Rejection Sampling Training
 
 After you have fine-tuned a GPT model using Supervised Fine-Tuning (SFT), and trained a reward model as explained in the preceding section, you can start aligning the policy using rejection sampling.
 
-During rejection sampling training, we have two models interacting with each other, which Aligner runs in separate jobs::
+During rejection sampling training, we have two models interacting with each other, which Aligner runs in separate jobs:
 
 #. The Policy Network: This is the model we are training, and it should start from an SFT model.
 #. The Reward Model (RM): This model takes a prompt concatenated with a response as input, and outputs a single scalar value: the reward, which the rejection sampling algorithm will try to maximize.
@@ -93,7 +93,7 @@ The RS Actor training job contains the master controller that makes the HTTP cal
       remote_critic_rm.reward_model.ip=${host_critic} \
       remote_critic_rm.reward_model.port=${CRITIC_PORT} \
       model.rs.num_rollout_per_prompt=8 \
-      model.rs.num_select=1
+      model.rs.top_n_rollouts=1
 
 The above launches the initial and actor server on 1 node with 8 GPUs
 
@@ -210,7 +210,7 @@ You can use slurm to launch the 2 jobs and get them to coordinate together in a 
       remote_critic_rm.reward_model.ip=${host_critic} \
       remote_critic_rm.reward_model.port=${CRITIC_PORT} \
       model.rs.num_rollout_per_prompt=8 \
-      model.rs.num_select=1
+      model.rs.top_n_rollouts=1
    EOF
 
    srun --het-group=1 -o $PPO_OUTFILE -e $PPO_ERRFILE --container-image=${CONTAINER} $MOUNTS bash -c "${cmd_rs}" &

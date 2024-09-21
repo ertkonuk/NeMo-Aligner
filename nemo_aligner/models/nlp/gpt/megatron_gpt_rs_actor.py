@@ -173,55 +173,6 @@ class MegatronGPTRSModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGenera
         """no need to offload adam states here
         """
 
-    # inference calls
-    def get_logprob_output_only_func(self, inference_only=True):
-        fwd_output_only_func = self.get_forward_output_only_func()
-
-        def log_prob_output_only_func(dataloader_iter, model):
-            batch = next(dataloader_iter)
-
-            output_tensor, _ = fwd_output_only_func(iter([batch,]), model)
-
-            def id_func(output_tensor, non_loss_data=True):
-                logprobs = from_parallel_logits_to_logprobs(
-                    vocab_parallel_logits=output_tensor, target=batch[0], inference_only=inference_only
-                )
-                return logprobs
-
-            return output_tensor, id_func
-
-        return log_prob_output_only_func
-
-    @torch.no_grad()
-    def get_inference_log_probs(self, response_tokens, forward_micro_batch_size):
-        set_sync_funcs(self, forward_only=True)
-
-        mbs, seq_length = response_tokens.size()
-        num_microbatches = divide(mbs, forward_micro_batch_size)
-
-        attention_mask, _, position_ids = self.get_ltor_masks_and_position_ids(response_tokens)
-
-        batch_iter = get_iterator_k_split([response_tokens, attention_mask, position_ids], num_microbatches)
-
-        fwd_bwd_function = get_forward_backward_func()
-        logprobs_list = fwd_bwd_function(
-            forward_step_func=self.get_logprob_output_only_func(inference_only=True),
-            data_iterator=batch_iter,
-            model=self.model,
-            num_microbatches=num_microbatches,
-            forward_only=True,
-            seq_length=seq_length,
-            micro_batch_size=forward_micro_batch_size,
-            collect_non_loss_data=True,
-        )
-
-        logprobs = torch.cat(logprobs_list) if len(logprobs_list) > 0 else None
-
-        # Broadcast it from last PP stage to everything else.
-        logprobs = broadcast_2d_tensor_within_pp(logprobs)
-
-        return logprobs
-
     def prepare_for_inference(self):
         """normally we would configure the micro batch calculator here
             but the nemo generation already does the configuration"""
@@ -263,11 +214,6 @@ class MegatronGPTRSModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGenera
                     f"`response_tokens` ({response_tokens.size(1)})"
                 )
 
-        # # TODO(geshen): get nemo generate to return the unaltered log probs
-        # log_probs = self.get_inference_log_probs(
-        #     response_tokens, forward_micro_batch_size=self.forward_micro_batch_size
-        # )
-
         rollout_batch = {
             "response_tokens": response_tokens,
             "response_lengths": response_lengths,
@@ -276,28 +222,6 @@ class MegatronGPTRSModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGenera
 
         # return in GPU, trainer needs to move to cpu
         return rollout_batch
-
-    def get_init_policy_logprobs(self, rollout_batches):
-        init_log_probs = []
-        if self.use_peft and self.init_policy_state_dict is None:
-            # when using adapters instead of full-tuning, the actor is init policy + adapters
-            with adapter_control(self):
-                # With adapters disabled (meaning using the init policy), calculate init_log_probs
-                for rollout_batch in rollout_batches:
-                    init_log_prob = self.get_inference_log_probs(
-                        rollout_batch["response_tokens"].cuda(), forward_micro_batch_size=self.forward_micro_batch_size
-                    )
-                    init_log_probs.append(init_log_prob)
-        else:
-            with cpu_weight_swap(self, self.init_policy_state_dict, megatron_amp_O2=self.megatron_amp_O2):
-                for rollout_batch in rollout_batches:
-                    init_log_prob = self.get_inference_log_probs(
-                        rollout_batch["response_tokens"].cuda(), forward_micro_batch_size=self.forward_micro_batch_size
-                    )
-                    init_log_probs.append(init_log_prob)
-
-        # return in GPU, trainer needs to move to cpu
-        return init_log_probs
 
     def finish_inference(self):
         # training will onload the adam states, no need to onload it here
