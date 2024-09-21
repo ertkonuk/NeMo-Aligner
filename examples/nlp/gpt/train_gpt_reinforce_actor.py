@@ -178,7 +178,7 @@ def main(cfg) -> None:
         ckpt_callback=ckpt_callback,
         run_timer=timer,
         generation_iter=1,
-        duplicate_prompts=cfg.model.reinforce.num_rollout_samples,
+        duplicate_prompts=cfg.model.reinforce.num_rollout_per_prompt,
     )
 
     if custom_trainer_state_dict is not None:
