@@ -28,6 +28,7 @@ from unittest.mock import patch
 
 import torch
 from megatron.core.dist_checkpointing.mapping import ShardedObject, ShardedTensorFactory
+
 # from megatron.core.num_microbatches_calculator import reconfigure_microbatch_calculator
 from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
 from omegaconf import DictConfig, OmegaConf
