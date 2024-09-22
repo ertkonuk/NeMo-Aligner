@@ -113,7 +113,7 @@ class PPORolloutBatch(UserDict):
 
         g_cpu = torch.Generator()
         g_cpu.manual_seed(seed)
-        indices = torch.randperm(B, generator=g_cpu).tensor_split(split_size)[rank]
+        indices = torch.arange(B)#torch.randperm(B, generator=g_cpu).tensor_split(split_size)[rank]
 
         for k in self.data:
             chunked_rollout_batch[k] = self.data[k][indices].clone()
@@ -218,9 +218,9 @@ class ReinforceDebugger:
         init_policy_kl = rollout_batch["init_policy_kl"]
         baseline = rollout_batch["baseline"]
 
-        print(rewards_with_kl)
+        print("RKL", rewards_with_kl)
         print("_"*50)
-        print(baseline)
+        print("baseline", baseline)
         print("*"*50)
         # collect everything we need to train Reinforce
         ppo_rollout_data["mask"] = mask
@@ -274,10 +274,10 @@ class ReinforceDebugger:
             timer_metrics["batch_iterator_init"] = self.timer.stop_and_get_time("batch_iterator_init")
 
             self.timer.start("generate")
-            for i, batch in enumerate(batch_iterator):
+            for batch in batch_iterator:
                 # Do we need a random seed here?
                 if not is_validation:
-                    for j in range(self.num_rollout_per_prompt):
+                    for _ in range(self.num_rollout_per_prompt):
                         rollout_batch = self.model.infer(batch)
                         rollout_batch["prompt_tokens"] = batch["text"] # Save prompt tokens for rloo
                         rollout_batches.append(rollout_batch)
@@ -347,8 +347,8 @@ class ReinforceDebugger:
         global_rollout_batch.update(global_rm_value_batch)
 
         if not is_validation:
-            print(balanced_local_batch["prompt_tokens"].shape)
-            print(torch.unique(balanced_local_batch["prompt_tokens"], dim=0).shape)
+            print("prompt_tokens", balanced_local_batch["prompt_tokens"].shape)
+            print("unique prompt_tokens", torch.unique(balanced_local_batch["prompt_tokens"], dim=0).shape)
             if self.compute_init_policy_kl:
                 init_policy_kl = calculate_kl_penalty(
                     log_probs_a=balanced_local_batch["logprobs"],
