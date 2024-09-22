@@ -346,7 +346,7 @@ class ReinforceTrainer:
 
             self.model.prepare_for_training_step()
             print(batch)
-            brint(batch["baseline"].shape)
+            print(batch["baseline"].shape)
             loss_mean, metrics = self.model.get_loss_and_metrics(batch=batch, forward_only=False)
             self.model.finish_training_step()
 
