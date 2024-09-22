@@ -136,7 +136,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                     vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True
                 )
 
-                reinforce_loss = -1 * curr_log_probs #* (rewards - baseline)
+                reinforce_loss = -1 * curr_log_probs * (rewards - baseline)
                 loss = masked_mean(reinforce_loss, mask)
 
                 reduced_actor_loss = average_losses_across_data_parallel_group([loss])
