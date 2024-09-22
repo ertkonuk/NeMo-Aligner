@@ -345,6 +345,8 @@ class ReinforceTrainer:
             self.optimizer.zero_grad()
 
             self.model.prepare_for_training_step()
+            print(batch)
+            brint(batch["baseline"].shape)
             loss_mean, metrics = self.model.get_loss_and_metrics(batch=batch, forward_only=False)
             self.model.finish_training_step()
 
@@ -437,6 +439,7 @@ class ReinforceTrainer:
                 )
 
                 rollout_size = reinforce_rollout_data["response_tokens"].size(0)
+                print("BATCH SIZE", num_to_load_on_each_dp)
                 rollout_dataloader_iter = get_iterator_k_split(
                     reinforce_rollout_data, divide(rollout_size, num_to_load_on_each_dp)
                 )
