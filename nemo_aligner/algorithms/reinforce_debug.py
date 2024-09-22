@@ -291,7 +291,7 @@ class ReinforceDebugger:
                         rollout_batch = self.model.infer(batch)
                         rollout_batch["prompt_tokens"] = batch["text"] # Save prompt tokens for rloo
                         rollout_batches.append(rollout_batch)
-                        futures.append((rollout_batch["response_lengths"].float(), torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]-1])))
+                        futures.append((rollout_batch["response_lengths"].float() / 300, torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]-1])))
                 else:
                     rollout_batch = self.model.infer(batch)
                     rollout_batch["prompt_tokens"] = batch["text"] # Save prompt tokens for rloo
