@@ -99,11 +99,13 @@ def calculate_rloo_baseline(prompts, reward):
 
         baseline = torch.zeros_like(reward)
         reward_device = reward.get_device()
+        print("REWARD in baseline calc", reward)
         for i in range(len(unique_prompts)):
             prompt_idx = torch.arange(len(prompts), device=reward_device)[(prompts == unique_prompts[i]).all(1)]
             rloo_mat = (1 - torch.eye(len(prompt_idx))).to(reward_device)
 
             rloo = torch.matmul(rloo_mat, reward[prompt_idx]) / (len(prompt_idx) - 1)
+            print(len(prompt_idx) - 1)
             baseline[prompt_idx] = rloo
-
+        print("Baseline in baseline calc", reward)
         return baseline

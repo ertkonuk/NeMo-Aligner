@@ -226,6 +226,7 @@ class ReinforceDebugger:
         mask = create_mask(values=values, prompt_lengths=prompt_lengths, response_lengths=response_lengths)
         init_policy_kl = masked_mean(init_policy_kl, mask, dim=-1)
 
+        print(init_policy_kl)
         # Calculate RLOO baseline
         rewards_with_kl = rewards - self.cfg.initial_policy_kl_penalty * init_policy_kl
 
@@ -233,6 +234,10 @@ class ReinforceDebugger:
             prompts=rollout_batch["prompt_tokens"],
             reward=rewards_with_kl
         )
+        print(rewards_with_kl)
+        print("_"*50)
+        print(baseline)
+        print("*"*50)
         # collect everything we need to train Reinforce
         ppo_rollout_data["mask"] = mask
         ppo_rollout_data["baseline"] = baseline
