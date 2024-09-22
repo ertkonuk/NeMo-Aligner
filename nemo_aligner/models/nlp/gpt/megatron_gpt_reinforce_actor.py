@@ -115,7 +115,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                     required_keys.update(("response_tokens", "position_ids"))
 
                 if parallel_state.is_pipeline_last_stage():
-                    required_keys.update(("baseline", "rewards", "mask", "is_end"))
+                    required_keys.update(("baseline", "rewards_with_kl", "mask", "is_end"))
 
             batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in batch.items()}
 
@@ -127,7 +127,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 mask = batch["mask"]
                 tokens = batch["response_tokens"]
                 baseline = batch["baseline"]
-                rewards = batch["rewards"]
+                rewards = batch["rewards_with_kl"]
 
                 curr_log_probs = from_parallel_logits_to_logprobs(
                     vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True

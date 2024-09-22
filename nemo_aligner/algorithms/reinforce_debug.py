@@ -211,13 +211,14 @@ class ReinforceDebugger:
         response_tokens = rollout_batch["response_tokens"]
         values = rollout_batch["values"]
         rewards = rollout_batch["rewards"]
+        rewards_with_kl = rollout_batch["rewards_with_kl"]
         logprobs = rollout_batch["logprobs"]
         is_end = rollout_batch["is_end"]
         mask = rollout_batch["mask"]
         init_policy_kl = rollout_batch["init_policy_kl"]
         baseline = rollout_batch["baseline"]
 
-        print(rewards)
+        print(rewards_with_kl)
         print("_"*50)
         print(baseline)
         print("*"*50)
@@ -225,6 +226,7 @@ class ReinforceDebugger:
         ppo_rollout_data["mask"] = mask
         ppo_rollout_data["baseline"] = baseline
         ppo_rollout_data["rewards"] = rewards
+        ppo_rollout_data["rewards_with_kl"] = rewards_with_kl
         ppo_rollout_data["prev_logprobs"] = logprobs
         ppo_rollout_data["response_tokens"] = response_tokens
         ppo_rollout_data["is_end"] = is_end
@@ -367,7 +369,7 @@ class ReinforceDebugger:
                 reward=rewards_with_kl
             )
 
-            balanced_local_batch["rewards"] = rewards_with_kl
+            balanced_local_batch["rewards_with_kl"] = rewards_with_kl
             balanced_local_batch["baseline"] = baseline
             balanced_local_batch["mask"] = mask
             balanced_local_batch["init_policy_kl"] = init_policy_kl
