@@ -411,6 +411,7 @@ class ReinforceTrainer:
             dp_size = parallel_state.get_data_parallel_world_size()
 
             num_to_load_on_each_dp = divide(self.cfg.model_gbs, dp_size)
+            print("DPSIZE", dp_size, num_to_load_on_each_dp)
 
             self.run_timer.start_time()
             for _ in global_pbar:

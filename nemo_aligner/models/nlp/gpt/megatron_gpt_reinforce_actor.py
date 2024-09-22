@@ -79,6 +79,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
             mask = batch["mask"]
             rewards = batch["rewards"]
             baseline = batch["baseline"]
+            print("LOSS shapes", baseline.shape, rewards.shape, response_tokens.shape, mask.shape)
 
             attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
                 data=response_tokens,
@@ -118,6 +119,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 rewards = batch["rewards"]
                 baseline = batch["baseline"]
                 tokens = batch["tokens"]
+                print("LOSS shapes2", baseline.shape, rewards.shape, tokens.shape, mask.shape)
 
                 curr_log_probs = from_parallel_logits_to_logprobs(vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True)
 
