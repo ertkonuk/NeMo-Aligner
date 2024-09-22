@@ -289,10 +289,10 @@ class ReinforceDebugger:
             timer_metrics["batch_iterator_init"] = self.timer.stop_and_get_time("batch_iterator_init")
 
             self.timer.start("generate")
-            for batch in batch_iterator:
+            for i, batch in enumerate(batch_iterator):
                 # Do we need a random seed here?
                 if not is_validation:
-                    for _ in range(self.num_rollout_per_prompt):
+                    for j in range(self.num_rollout_per_prompt):
                         rollout_batch = self.model.infer(batch)
                         rollout_batch["prompt_tokens"] = batch["text"] # Save prompt tokens for rloo
                         rollout_batches.append(rollout_batch)
@@ -360,6 +360,37 @@ class ReinforceDebugger:
         )
         balanced_local_batch.update(balanced_rm_value_batch)
         global_rollout_batch.update(global_rm_value_batch)
+
+        if not is_validation:
+            print(balanced_local_batch["prompt_tokens"].shape)
+            print(torch.unique(balanced_local_batch["prompt_tokens"], dim=0).shape)
+            if self.compute_init_policy_kl:
+                init_policy_kl = calculate_kl_penalty(
+                    log_probs_a=balanced_local_batch["logprobs"],
+                    log_probs_b=balanced_local_batch["init_logprobs"],
+                    use_absolute_kl=self.cfg.use_absolute_kl,
+                )
+            else:
+                init_policy_kl = torch.tensor(0, dtype=logprobs.dtype, device=logprobs.device)
+            
+            mask = create_mask(values=balanced_local_batch["values"], prompt_lengths=balanced_local_batch["prompt_lengths"], response_lengths=balanced_local_batch["response_lengths"])
+            init_policy_kl = masked_mean(init_policy_kl, mask, dim=-1)
+
+            # Calculate RLOO baseline
+            rewards_with_kl = balanced_local_batch["rewards"] - self.cfg.initial_policy_kl_penalty * init_policy_kl
+
+            baseline = calculate_rloo_baseline(
+                prompts=balanced_local_batch["prompt_tokens"],
+                reward=rewards_with_kl
+            )
+
+            balanced_local_batch["rewards"] = rewards_with_kl
+            balanced_local_batch["baseline"] = baseline
+            balanced_local_batch["mask"] = mask
+            balanced_local_batch["init_policy_kl"] = init_policy_kl
+
+        
+        return balanced_local_batch, cpu_dict(self.compute_rollout_metrics(global_rollout_batch)), timer_metrics
         
         return balanced_local_batch, cpu_dict(self.compute_rollout_metrics(global_rollout_batch)), timer_metrics
 
