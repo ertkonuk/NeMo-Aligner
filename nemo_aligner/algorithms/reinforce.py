@@ -268,12 +268,12 @@ class ReinforceDebugger:
             timer_metrics["batch_iterator_init"] = self.timer.stop_and_get_time("batch_iterator_init")
 
             self.timer.start("generate")
-            for batch in batch_iterator:
+            for i, batch in enumerate(batch_iterator):
                 # Do we need a random seed here?
                 if not is_validation:
-                    for _ in range(self.num_rollout_per_prompt):
+                    for j in range(self.num_rollout_per_prompt):
                         rollout_batch = self.model.infer(batch)
-                        rollout_batch["prompt_tokens"] = batch["text"] # Save prompt tokens for rloo
+                        rollout_batch["prompt_tokens"] = torch.Tensor([i, j]) # Save prompt tokens for rloo
                         rollout_batches.append(rollout_batch)
                         futures.append(self.rm_critic.infer_rm_critic(rollout_batch))
                 else:
@@ -320,6 +320,7 @@ class ReinforceDebugger:
             rm_value_rollout_batches = []
             for future in futures:
                 rewards, values = future.result() if isinstance(future, FutureResult) else future
+
                 rm_value_rollout_batches.append({"rewards": rewards, "values": values})
             timer_metrics["critic_wait"] = self.timer.stop_and_get_time("critic_wait")
             unbalanced_rm_value_batch = PPORolloutBatch.from_rollout_batches(
