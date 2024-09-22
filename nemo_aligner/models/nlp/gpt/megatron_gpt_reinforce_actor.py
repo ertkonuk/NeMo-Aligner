@@ -154,7 +154,7 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
     def get_loss_and_metrics(self, batch, forward_only):
         sequence_length = batch["response_tokens"].size(-1)
 
-        print("getloss and metrics", batch["Baseline"].shape, get_num_microbatches())
+        print("getloss and metrics", batch["baseline"].shape, get_num_microbatches())
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
         set_sync_funcs(self, forward_only)
         fwd_bwd_function = get_forward_backward_func()
