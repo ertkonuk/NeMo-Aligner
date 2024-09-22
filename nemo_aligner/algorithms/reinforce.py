@@ -341,6 +341,8 @@ class ReinforceDebugger:
         global_rollout_batch.update(global_rm_value_batch)
 
         if not is_validation:
+            print(balanced_local_batch["prompt_tokens.shape"].shape)
+            print(torch.unique(balanced_local_batch["prompt_tokens.shape"], dim=0).shape)
             if self.compute_init_policy_kl:
                 init_policy_kl = calculate_kl_penalty(
                     log_probs_a=balanced_local_batch["logprobs"],

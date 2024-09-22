@@ -129,9 +129,6 @@ class MegatronGPTReinforceModel(NLPAdapterModelMixin, MegatronGPTModel, Alignabl
                 baseline = batch["baseline"]
                 rewards = batch["rewards"]
 
-
-                print("Advantage", rewards - baseline)
-
                 curr_log_probs = from_parallel_logits_to_logprobs(
                     vocab_parallel_logits=parallel_logits, target=tokens, higher_stability=True
                 )
