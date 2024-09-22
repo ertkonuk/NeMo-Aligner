@@ -213,27 +213,10 @@ class ReinforceDebugger:
         rewards = rollout_batch["rewards"]
         logprobs = rollout_batch["logprobs"]
         is_end = rollout_batch["is_end"]
+        mask = rollout_batch["mask"]
+        init_policy_kl = rollout_batch["init_policy_kl"]
+        baseline = rollout_batch["baseline"]
 
-        if self.compute_init_policy_kl:
-            init_policy_kl = calculate_kl_penalty(
-                log_probs_a=rollout_batch["logprobs"],
-                log_probs_b=rollout_batch["init_logprobs"],
-                use_absolute_kl=self.cfg.use_absolute_kl,
-            )
-        else:
-            init_policy_kl = torch.tensor(0, dtype=logprobs.dtype, device=logprobs.device)
-        
-        mask = create_mask(values=values, prompt_lengths=prompt_lengths, response_lengths=response_lengths)
-        init_policy_kl = masked_mean(init_policy_kl, mask, dim=-1)
-
-        print(init_policy_kl)
-        # Calculate RLOO baseline
-        rewards_with_kl = rewards - self.cfg.initial_policy_kl_penalty * init_policy_kl
-
-        baseline = calculate_rloo_baseline(
-            prompts=rollout_batch["prompt_tokens"],
-            reward=rewards_with_kl
-        )
         print(rewards_with_kl)
         print("_"*50)
         print(baseline)
@@ -392,8 +375,6 @@ class ReinforceDebugger:
         
         return balanced_local_batch, cpu_dict(self.compute_rollout_metrics(global_rollout_batch)), timer_metrics
         
-        return balanced_local_batch, cpu_dict(self.compute_rollout_metrics(global_rollout_batch)), timer_metrics
-
     def compute_rollout_metrics(self, rollout_batch):
         table = {}
 

@@ -106,6 +106,5 @@ def calculate_rloo_baseline(prompts, reward):
             rloo_mat = (1 - torch.eye(len(prompt_idx))).to(reward_device)
 
             rloo = torch.matmul(rloo_mat, reward[prompt_idx]) / (len(prompt_idx) - 1)
-            print("GROUP SIZE", len(prompt_idx) - 1)
             baseline[prompt_idx] = rloo
         return baseline
