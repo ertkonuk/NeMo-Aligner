@@ -512,37 +512,29 @@ class ReinforceTrainer:
                 step_metrics = {}
                 timing_metrics = {}
 
-                # we add 1 here because when we have no warmup we need to send train to critic anyway
-                critic_train_loop_amount = self.critic_warmup_steps + 1 if self.step == 0 else 1
+                self.timer.start("rollout_time")
+                clear_memory()
+                ppo_rollout_data, metrics, timer_metrics = self.generate_rollouts()
+                timing_metrics["rollout_time"] = self.timer.stop_and_get_time("rollout_time")
 
-                for _ in range(critic_train_loop_amount):
-                    self.timer.start("rollout_time")
-                    clear_memory()
-                    ppo_rollout_data, metrics, timer_metrics = self.generate_rollouts()
-                    timing_metrics["rollout_time"] = self.timer.stop_and_get_time("rollout_time")
+                timer_metrics = all_reduce_dict(timer_metrics, op=torch.distributed.ReduceOp.MAX)
+                timing_metrics.update(timer_metrics)
 
-                    # send critic train
-                    # clear_memory()
-                    # self.rm_critic.train(ppo_rollout_data)
-
-                    timer_metrics = all_reduce_dict(timer_metrics, op=torch.distributed.ReduceOp.MAX)
-                    timing_metrics.update(timer_metrics)
-
-                    # logging
-                    table_metrics = metrics.pop("table")
-                    self.train_df.loc[len(self.train_df)] = [
-                        self.step,
-                        table_metrics["prompt"],
-                        table_metrics["response"],
-                        table_metrics["reward"],
-                    ]
-                    metrics["epoch"] = self.epoch + 1
-                    self.logger.log_metrics(
-                        metrics, step=self.step, prefix="train_rollouts/",
-                    )
-                    self.logger.log_table(
-                        key="table/train_rollouts", dataframe=self.train_df, step=self.step,
-                    )
+                # logging
+                table_metrics = metrics.pop("table")
+                self.train_df.loc[len(self.train_df)] = [
+                    self.step,
+                    table_metrics["prompt"],
+                    table_metrics["response"],
+                    table_metrics["reward"],
+                ]
+                metrics["epoch"] = self.epoch + 1
+                self.logger.log_metrics(
+                    metrics, step=self.step, prefix="train_rollouts/",
+                )
+                self.logger.log_table(
+                    key="table/train_rollouts", dataframe=self.train_df, step=self.step,
+                )
 
                 if self.step == 0:
                     # at step 0 we do critic warmup which consumed samples
