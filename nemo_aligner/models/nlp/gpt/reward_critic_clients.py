@@ -24,10 +24,63 @@ from nemo_aligner.utils import parallel_state
 from nemo_aligner.utils.distributed import broadcast_2d_tensor_within_mp, gather_tensor, run_if_model_parallel_src
 from nemo_aligner.utils.server_utils import FutureResult
 
+import re
+
 """A remote client that acts like a real Reward Model and Critic forwards all requests from the actor
     over to the remote PyTrition server
 """
 
+class HelpsteerTemplate:
+    def get_first_turn_template(self, text):
+        return f"""<extra_id_0>System\nA chat between a curious user and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the user's questions.
+<extra_id_1>User\n{text}"""
+
+    def get_assistant_turn_template(self, text):
+        return f"""\n<extra_id_1>Assistant\n{text}"""
+
+    def get_user_turn_template(self, text):
+        return f"""\n<extra_id_1>User\n{text}"""
+
+    def add_ending(self, text):
+        return f"""{text}\n<extra_id_2>"""
+
+
+
+def chat_template(user_text, assistant_text, template):
+    formatter = HelpsteerTemplate()
+    
+    text = ""
+    for i in range(len(user_text)):
+        if i == 0:
+            text += formatter.get_first_turn_template(user_text[i])
+        else:
+            text += formatter.get_user_turn_template(user_text[i])
+        text += formatter.get_assistant_turn_template(assistant_text[i])
+    text = formatter.add_ending(text)
+    return text
+
+
+def extract_dialogue_helpsteer(text):
+    user_pattern = r'<extra_id_1>User\n(.*?)\n<extra_id_1>'
+    assistant_pattern = r'<extra_id_1>Assistant\n(.*?)\n(?:<extra_id_1>|<extra_id_2>)'
+    
+    user_text = re.findall(user_pattern, text, re.DOTALL)
+    assistant_text = re.findall(assistant_pattern, text, re.DOTALL)
+    
+    return user_text, assistant_text
+
+def extract_dialogue_llama(text):
+    user_pattern = r'<\|start_header_id\|>user<\|end_header_id\|>\n\n(.*?)<\|start_header_id\|>'
+    assistant_pattern = r'<\|start_header_id\|>assistant<\|end_header_id\|>\n\n(.*?)<\|start_header_id\|>'
+    
+    user_text = re.findall(user_pattern, text, re.DOTALL)
+    assistant_text = re.findall(assistant_pattern, text, re.DOTALL)
+    
+    return user_text, assistant_text
+
+def _str_list2numpy(str_list) -> np.ndarray:
+    str_ndarray = np.array(str_list)[..., np.newaxis]
+    return np.char.encode(str_ndarray, "utf-8")
 
 def get_future_result(future, *keys):
     """It waits for the result of the future to be ready, gets the value with the given key,
@@ -75,10 +128,8 @@ class RMCriticFutureResult(FutureResult):
         return rewards.flatten(), values
 
 class RMFutureResult(FutureResult):
-    def __init__(self, rm_future, og_seq_length):
+    def __init__(self, rm_future):
         self.rm_future = rm_future
-
-        self.og_seq_length = og_seq_length
 
     def result(self):
         rewards = get_future_result(self.rm_future, "rewards")
@@ -199,25 +250,30 @@ class RemoteGPTRMClient:
         self.communicator.print_server_dict()
         self.pad_to_length = self.cfg.pad_to_length
 
-    def infer_rm_critic(self, rollout_batch):
+    def infer_rm_critic(self, rollout_batch, model):
         response_tokens = rollout_batch["response_tokens"].cpu()
         og_seq_length = response_tokens.size(-1)
 
-        if self.pad_to_length is not None:
-            assert (
-                og_seq_length <= self.pad_to_length
-            ), f"original shape before padding {og_seq_length} is higher than {self.pad_to_length}"
-            response_tokens = torch.nn.functional.pad(
-                response_tokens, (0, self.pad_to_length - response_tokens.size(-1)), value=0
-            )
+        texts = []
+        for i in range(rollout_batch["response_tokens"].size(0)):
+            text = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["response_lengths"][i]].tolist())
+            user_text, assistant_text = extract_dialogue_llama(text + "<|start_header_id|>")
+            print(text + "<|start_header_id|>")
+            print("--"*80)
+            print("USER TEXT", user_text)
+            print("ASSISTANT_TEXT", assistant_text)
+            text = chat_template(user_text=user_text, assistant_text=assistant_text, template="HS2")
+            print("**"*80)
+            print(text)
+            print("0O0"*60)
+            texts.append(text)
 
         send_data = {
-            "tokens": response_tokens.numpy(),
-            "sequence_lengths": rollout_batch["response_lengths"].unsqueeze(1).cpu().numpy(),
-        }
+            "sentences": _str_list2numpy(texts),
+            }
 
         rm_future = run_if_model_parallel_src(
             self.communicator.send_data_to_server, server_name=self.cfg.reward_model.name, data=send_data,
         )
 
-        return RMFutureResult(rm_future, og_seq_length)
+        return RMFutureResult(rm_future)

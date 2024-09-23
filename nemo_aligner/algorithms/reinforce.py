@@ -128,7 +128,7 @@ def compute_num_rollout_microbatches(dataloader):
     )
 
 
-class ReinforceDebugger:
+class ReinforceTrainer:
     """Trainer to coordinate PPO training
     """
 
@@ -155,6 +155,7 @@ class ReinforceDebugger:
         self.train_dataloader_builder = train_dataloader_builder
         self.val_dataloader_builder = val_dataloader_builder
         self.collate_fn = collate_fn
+        self.rm_critic = rm_critic
         self.batch_iterator_cls = batch_iterator_cls
         self.logger = logger
         self.ckpt_callback = ckpt_callback
@@ -209,7 +210,6 @@ class ReinforceDebugger:
         prompt_lengths = rollout_batch["prompt_lengths"]
         response_lengths = rollout_batch["response_lengths"]
         response_tokens = rollout_batch["response_tokens"]
-        values = rollout_batch["values"]
         rewards = rollout_batch["rewards"]
         rewards_with_kl = rollout_batch["rewards_with_kl"]
         logprobs = rollout_batch["logprobs"]
@@ -281,12 +281,14 @@ class ReinforceDebugger:
                         rollout_batch = self.model.infer(batch)
                         rollout_batch["prompt_tokens"] = batch["text"] # Save prompt tokens for rloo
                         rollout_batches.append(rollout_batch)
-                        futures.append((1 / rollout_batch["response_lengths"].float() * 100, torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]-1])))
+                        futures.append(self.rm_critic.infer_rm_critic(rollout_batch, self.model))
+                        #futures.append((1 / rollout_batch["response_lengths"].float() * 100, torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]-1])))
                 else:
                     rollout_batch = self.model.infer(batch)
                     rollout_batch["prompt_tokens"] = batch["text"] # Save prompt tokens for rloo
                     rollout_batches.append(rollout_batch)
-                    futures.append((rollout_batch["response_lengths"].float(), torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]-1])))
+                    futures.append(self.rm_critic.infer_rm_critic(rollout_batch, self.model))
+                    # futures.append((rollout_batch["response_lengths"].float(), torch.zeros([rollout_batch["response_tokens"].shape[0], rollout_batch["response_tokens"].shape[1]-1])))
 
             timer_metrics["generate"] = self.timer.stop_and_get_time("generate")
 
@@ -325,8 +327,8 @@ class ReinforceDebugger:
             self.timer.start("critic_wait")
             rm_value_rollout_batches = []
             for future in futures:
-                rewards, values = future.result() if isinstance(future, FutureResult) else future
-                rm_value_rollout_batches.append({"rewards": rewards, "values": values})
+                rewards = future.result() if isinstance(future, FutureResult) else future
+                rm_value_rollout_batches.append({"rewards": rewards})
             timer_metrics["critic_wait"] = self.timer.stop_and_get_time("critic_wait")
             unbalanced_rm_value_batch = PPORolloutBatch.from_rollout_batches(
                 rm_value_rollout_batches,
@@ -347,8 +349,6 @@ class ReinforceDebugger:
         global_rollout_batch.update(global_rm_value_batch)
 
         if not is_validation:
-            print("prompt_tokens", balanced_local_batch["prompt_tokens"].shape)
-            print("unique prompt_tokens", torch.unique(balanced_local_batch["prompt_tokens"], dim=0).shape)
             if self.compute_init_policy_kl:
                 init_policy_kl = calculate_kl_penalty(
                     log_probs_a=balanced_local_batch["logprobs"],
