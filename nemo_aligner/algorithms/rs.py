@@ -445,7 +445,7 @@ class RSTrainer:
     def load_state_dict(self, state_dict):
         self.step = state_dict["step"]
         self.consumed_samples = state_dict["consumed_samples"]
-        self.rs_optimization_step = state_dict["ppo_optimization_step"]  # Due to way we save checkpoint
+        self.rs_optimization_step = state_dict["rs_optimization_step"]  # Due to way we save checkpoint
 
         loaded_values = [self.step, self.consumed_samples, self.rs_optimization_step]
 
