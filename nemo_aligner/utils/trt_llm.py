@@ -158,7 +158,7 @@ class GPTGenerateTRTLLM:
 
     def generate(self, inputs):
         prompt_tokens, prompt_lengths = inputs
-
+        print("PROMPT TOKENS SHAPE", prompt_tokens.shape, prompt_lengths.shape)
         batch_input_ids = []
         for idx in range(prompt_tokens.shape[0]):
             batch_input_ids.append(prompt_tokens[idx][0 : prompt_lengths[idx]].cpu())
