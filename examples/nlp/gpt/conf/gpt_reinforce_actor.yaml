@@ -42,8 +42,8 @@ trainer:
 
     # Speed-up training by accelerating inference stage using TRTLLM
     trt_llm:
-      enable: False
-      reshard: False # if True then reshard the model into TP only for inference
+      enable: True
+      reshard: True # if True then reshard the model into TP only for inference
 
       # TRTLLM preallocates activation memory according to the number of input tokens
       # By default, assume the max input length is the difference between the model sequence length and the max number of tokens to generate
