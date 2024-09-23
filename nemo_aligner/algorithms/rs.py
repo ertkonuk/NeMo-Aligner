@@ -52,7 +52,7 @@ class RSTrainer:
         logger,
         ckpt_callback,
         run_timer,
-        num_rollout_per_prompt,
+        num_rollouts_per_prompt,
         top_n_rollouts,
         rm,
     ):
@@ -64,7 +64,7 @@ class RSTrainer:
         self.val_dataloader = val_dataloader
         self.logger = logger
         self.ckpt_callback = ckpt_callback
-        self.num_rollout_per_prompt = num_rollout_per_prompt
+        self.num_rollouts_per_prompt = num_rollouts_per_prompt
         self.top_n_rollouts = top_n_rollouts
         self.rm = rm
 
@@ -153,7 +153,7 @@ class RSTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
 
                 current_batch = None
-                for _ in range(self.num_rollout_per_prompt):
+                for _ in range(self.num_rollouts_per_prompt):
 
                     if current_batch is None:
                         rollout_batch = self.model.infer(inference_batch)

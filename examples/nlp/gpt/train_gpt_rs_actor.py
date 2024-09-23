@@ -159,7 +159,7 @@ def main(cfg) -> None:
         logger=logger,
         ckpt_callback=ckpt_callback,
         run_timer=timer,
-        num_rollout_per_prompt=cfg.model.rs.num_rollouts_per_prompt,
+        num_rollouts_per_prompt=cfg.model.rs.num_rollouts_per_prompt,
         top_n_rollouts=cfg.model.rs.top_n_rollouts,
     )
 
