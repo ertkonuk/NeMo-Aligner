@@ -175,7 +175,7 @@ class RSTrainer:
                 all_rollouts["response_tokens"] = pad_sequence(
                     response_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id
                 )
-                print(prompt_tokens[0].shape, all_rollouts["prompt_tokens"].shape, "!!!!")
+                print(response_tokens[0].shape, all_rollouts["response_tokens"].shape, "!!!!")
                 all_rollouts["prompt_tokens"] = pad_sequence(
                     prompt_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id
                 )
