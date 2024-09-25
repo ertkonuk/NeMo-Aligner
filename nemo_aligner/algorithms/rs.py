@@ -173,10 +173,10 @@ class RSTrainer:
 
                 all_rollouts = {}
                 all_rollouts["response_tokens"] = torch.concatenate(
-                    torch.pad_list(response_tokens, pad_value=self.model.tokenizer.eos_id)
+                    pad_list(response_tokens, pad_value=self.model.tokenizer.eos_id)
                 )
                 all_rollouts["prompt_tokens"] = torch.concatenate(
-                    torch.pad_list(prompt_tokens, pad_value=self.model.tokenizer.eos_id)
+                    pad_list(prompt_tokens, pad_value=self.model.tokenizer.eos_id)
                 )
                 all_rollouts["response_lengths"] = torch.concatenate(response_lengths)
                 all_rollouts["prompt_lengths"] = torch.concatenate(prompt_lengths)
