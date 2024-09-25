@@ -19,6 +19,7 @@ import torch
 from megatron.core import parallel_state
 from megatron.core.utils import divide
 from omegaconf.dictconfig import DictConfig
+from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
@@ -28,7 +29,6 @@ from nemo_aligner.utils.ppo_utils import create_mask, select_topk
 from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
 from nemo_aligner.utils.utils import clear_memory, cpu_dict
-from torch.nn.utils.rnn import pad_sequence
 
 
 def compute_num_rollout_microbatches(dataloader):
@@ -154,7 +154,13 @@ class RSTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
 
                 current_batch = None
-                prompt_tokens, response_tokens, response_lengths, prompt_lengths, rewards = [], [], [], [], [], 
+                prompt_tokens, response_tokens, response_lengths, prompt_lengths, rewards = (
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                )
                 for _ in range(self.num_rollouts_per_prompt):
                     rollout_batch = self.model.infer(inference_batch)
                     rewards = self.rm.infer_rm(rollout_batch).result().detach()
@@ -166,8 +172,12 @@ class RSTrainer:
                     rewards.append(rewards)
 
                 all_rollouts = {}
-                all_rollouts["response_tokens"] = pad_sequence(response_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id)
-                all_rollouts["prompt_tokens"] = pad_sequence(prompt_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id)
+                all_rollouts["response_tokens"] = pad_sequence(
+                    response_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id
+                )
+                all_rollouts["prompt_tokens"] = pad_sequence(
+                    prompt_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id
+                )
                 all_rollouts["response_lengths"] = torch.concatenate(response_lengths)
                 all_rollouts["prompt_lengths"] = torch.concatenate(prompt_lengths)
                 all_rollouts["rewards"] = torch.concatenate(rewards)
