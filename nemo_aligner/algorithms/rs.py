@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.utils import logging
-from nemo_aligner.utils.distributed import SyncTimer, pad_batch, pad_tensors_to_max_global_seq_len
+from nemo_aligner.utils.distributed import SyncTimer, pad_list, pad_tensors_to_max_global_seq_len
 from nemo_aligner.utils.ppo_utils import create_mask, select_topk
 from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
@@ -172,12 +172,11 @@ class RSTrainer:
                     rewards.append(reward)
 
                 all_rollouts = {}
-                all_rollouts["response_tokens"] = pad_sequence(
-                    response_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id
+                all_rollouts["response_tokens"] = torch.concatenate(
+                    torch.pad_list(response_tokens, pad_value=self.model.tokenizer.eos_id)
                 )
-                print(response_tokens[0].shape, all_rollouts["response_tokens"].shape, "!!!!")
-                all_rollouts["prompt_tokens"] = pad_sequence(
-                    prompt_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id
+                all_rollouts["prompt_tokens"] = torch.concatenate(
+                    torch.pad_list(prompt_tokens, pad_value=self.model.tokenizer.eos_id)
                 )
                 all_rollouts["response_lengths"] = torch.concatenate(response_lengths)
                 all_rollouts["prompt_lengths"] = torch.concatenate(prompt_lengths)
