@@ -163,13 +163,13 @@ class RSTrainer:
                 )
                 for _ in range(self.num_rollouts_per_prompt):
                     rollout_batch = self.model.infer(inference_batch)
-                    rewards = self.rm.infer_rm(rollout_batch).result().detach()
+                    reward = self.rm.infer_rm(rollout_batch).result().detach()
 
                     prompt_tokens.append(inference_batch["text"])
                     response_tokens.append(rollout_batch["response_tokens"])
                     response_lengths.append(rollout_batch["response_lengths"])
                     prompt_lengths.append(rollout_batch["prompt_lengths"])
-                    rewards.append(rewards)
+                    rewards.append(reward)
 
                 all_rollouts = {}
                 all_rollouts["response_tokens"] = pad_sequence(
