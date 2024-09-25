@@ -28,6 +28,7 @@ from nemo_aligner.utils.ppo_utils import create_mask, select_topk
 from nemo_aligner.utils.train_utils import clip_gradients
 from nemo_aligner.utils.trainer_utils import check_progress, compute_num_steps_per_epoch
 from nemo_aligner.utils.utils import clear_memory, cpu_dict
+from torch.nn.utils.rnn import pad_sequence
 
 
 def compute_num_rollout_microbatches(dataloader):
@@ -153,43 +154,28 @@ class RSTrainer:
             for _, inference_batch in zip(range(num_microbatches), dataloader_iter):
 
                 current_batch = None
+                prompt_tokens, response_tokens, response_lengths, prompt_lengths, rewards = [], [], [], [], [], 
                 for _ in range(self.num_rollouts_per_prompt):
-
-                    if current_batch is None:
-                        rollout_batch = self.model.infer(inference_batch)
-                        current_batch = rollout_batch
-                        current_batch["prompt_tokens"] = inference_batch["text"]
-                    else:
-                        rollout_batch = self.model.infer(inference_batch)
-                        # Need to pad response tokens before concatenating. Response tokens has prompts concatenated with responses.
-                        current_batch["response_tokens"], rollout_batch["response_tokens"] = pad_batch(
-                            current_batch["response_tokens"],
-                            rollout_batch["response_tokens"],
-                            self.model.tokenizer.eos_id,
-                        )
-
-                        current_batch["response_tokens"] = torch.concatenate(
-                            [current_batch["response_tokens"], rollout_batch["response_tokens"]], dim=0
-                        )
-                        current_batch["response_lengths"] = torch.concatenate(
-                            [current_batch["response_lengths"], rollout_batch["response_lengths"]], dim=0
-                        )
-                        current_batch["prompt_lengths"] = torch.concatenate(
-                            [current_batch["prompt_lengths"], rollout_batch["prompt_lengths"]], dim=0
-                        )
-                        current_batch["prompt_tokens"] = torch.concatenate(
-                            [current_batch["prompt_tokens"], inference_batch["text"]], dim=0
-                        )
-
+                    rollout_batch = self.model.infer(inference_batch)
                     rewards = self.rm.infer_rm(rollout_batch).result().detach()
-                    if "rewards" in current_batch:
-                        current_batch["rewards"] = torch.concatenate([current_batch["rewards"], rewards], dim=0)
-                    else:
-                        current_batch["rewards"] = rewards
-                rollout_batch = select_topk(current_batch, self.top_n_rollouts)
+
+                    prompt_tokens.append(inference_batch["text"])
+                    response_tokens.append(rollout_batch["response_tokens"])
+                    response_lengths.append(rollout_batch["response_lengths"])
+                    prompt_lengths.append(rollout_batch["prompt_lengths"])
+                    rewards.append(rewards)
+
+                all_rollouts = {}
+                all_rollouts["response_tokens"] = pad_sequence(response_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id)
+                all_rollouts["prompt_tokens"] = pad_sequence(prompt_tokens, batch_first=True, padding_value=self.model.tokenizer.eos_id)
+                all_rollouts["response_lengths"] = torch.concatenate(response_lengths)
+                all_rollouts["prompt_lengths"] = torch.concatenate(prompt_lengths)
+                all_rollouts["rewards"] = torch.concatenate(rewards)
+
+                rollout_batch = select_topk(all_rollouts, self.top_n_rollouts)
 
                 rollout_batches.append(rollout_batch)
-                full_batches.append(current_batch)
+                full_batches.append(all_rollouts)
             return rollout_batches, cpu_dict(self.compute_global_rollout_metrics(full_batches))
 
         else:
@@ -445,7 +431,7 @@ class RSTrainer:
     def load_state_dict(self, state_dict):
         self.step = state_dict["step"]
         self.consumed_samples = state_dict["consumed_samples"]
-        self.rs_optimization_step = state_dict["rs_optimization_step"]  # Due to way we save checkpoint
+        self.rs_optimization_step = state_dict["rs_optimization_step"]
 
         loaded_values = [self.step, self.consumed_samples, self.rs_optimization_step]
 

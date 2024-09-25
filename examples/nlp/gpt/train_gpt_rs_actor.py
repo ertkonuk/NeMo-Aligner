@@ -68,9 +68,6 @@ def main(cfg) -> None:
 
     init_peft(ptl_model, cfg.model)
 
-    init_policy_state_dict = None
-    ptl_model.init_policy_state_dict = init_policy_state_dict
-
     # pull values from checkpoint
     trainer_restore_path = trainer.ckpt_path
 
