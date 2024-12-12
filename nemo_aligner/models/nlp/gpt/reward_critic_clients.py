@@ -76,6 +76,15 @@ def extract_dialogue_llama(text):
     
     return user_text, assistant_text
 
+def extract_dialogue_pixtral(text):
+    user_pattern = r'<s>\[INST\](.*?)\[/INST\]'
+    assistant_pattern = r'\[/INST\](.*?)(?:</s>|$)' 
+    
+    user_text = re.findall(user_pattern, text, re.DOTALL)
+    assistant_text = re.findall(assistant_pattern, text, re.DOTALL)
+    
+    return user_text, assistant_text
+    
 def _str_list2numpy(str_list) -> np.ndarray:
     str_ndarray = np.array(str_list)[..., np.newaxis]
     return np.char.encode(str_ndarray, "utf-8")
@@ -257,8 +266,11 @@ class RemoteGPTRMClient:
         texts = []
         for i in range(rollout_batch["response_tokens"].size(0)):
             text = model.tokenizer.ids_to_text(rollout_batch["response_tokens"][i, :rollout_batch["response_lengths"][i]].tolist())
-            user_text, assistant_text = extract_dialogue_llama(text + "<|start_header_id|>")
-            print(text + "<|start_header_id|>")
+            #user_text, assistant_text = extract_dialogue_llama(text + "<|start_header_id|>")
+            user_text, assistant_text = extract_dialogue_pixtral(text + "[INST]")
+            print(text)
+            print('#'*80)
+            print(text + "[INST]")
             print("--"*80)
             print("USER TEXT", user_text)
             print("ASSISTANT_TEXT", assistant_text)
