@@ -35,6 +35,7 @@ from nemo_aligner.utils.utils import log_memory, print_memory_info
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
+    reduce_losses_across_data_parallel_group,
     get_iterator_k_split,
     get_ltor_masks_and_position_ids,
 )
@@ -66,6 +67,7 @@ from nemo_aligner.utils.utils import (
     configure_batch_sizes,
     cpu_weight_swap,
     masked_mean,
+    masked_sum,
     offload_distributed_adam,
     offload_distributed_parameters,
 )
@@ -316,7 +318,8 @@ class MegatronGPTActorModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGen
                 loss2 = -advantages * ratios_clamped
 
                 if is_end_mask.sum() > 0:
-                    actor_loss = masked_mean(importance_correction * torch.max(loss1, loss2), is_end_mask)
+                    #actor_loss = masked_mean(importance_correction * torch.max(loss1, loss2), is_end_mask)
+                    actor_loss, total_tokens = masked_sum(importance_correction * torch.max(loss1, loss2), is_end_mask)
                     loss = actor_loss + kl
                 else:
                     # hack to disable this update since there are no valid tokens
@@ -332,10 +335,13 @@ class MegatronGPTActorModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGen
                     grpo_ratio,
                     grpo_ratio_clamped,
                 ) = average_losses_across_data_parallel_group([loss, grpo_ratio, grpo_ratio_clamped])
+                
+                # Get the total number of tokens across all DP ranks
+                reduced_total_tokens = reduce_losses_across_data_parallel_group([total_tokens])
                 return (
-                    loss,
+                    loss / reduced_total_tokens,
                     {
-                        "loss": reduced_actor_loss,
+                        "loss": reduced_actor_loss / reduced_total_tokens,
                         "grpo_ratio": grpo_ratio,
                         "grpo_ratio_clamped": grpo_ratio_clamped,
                     },
