@@ -35,9 +35,9 @@ def verify_code_worker(verifier: CodeVerifier,
                 assertions = test_data["unittests"]
                 results = verifier.verify_assertions(code_str, assertions)
 
-            # Calculate reward based on test results
+            # Calculate binary reward: 1.0 if all tests pass, 0.0 otherwise
             num_passed = sum(1 for r in results if r.get('passed', False))
-            reward = num_passed / len(results) if results else 0.0
+            reward = 1.0 if results and num_passed == len(results) else 0.0
             
             # Include detailed results for debugging
             output_queue.put((idx, {
