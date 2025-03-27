@@ -3,7 +3,7 @@ import multiprocessing as mp
 from enum import Enum
 import logging
 from typing import Callable, Dict, List, Union
-from nemo_aligner.utils.verifiers.code_verifier_unsafe import CodeVerifier
+from nemo_aligner.utils.verifiers.code_verifier_robust import CodeVerifier
 import numpy as np
 
 app = Flask(__name__)
