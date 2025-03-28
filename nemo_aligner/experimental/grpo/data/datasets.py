@@ -73,7 +73,7 @@ class AllTaskDataset:
 
         extra_verifier_info = None
         # hard code to math for now
-        if task_name == "code":
+        if "code" in task_name:
             text_str = self.data[idx]["prompt"]
             extra_verifier_info = {"unittests": self.data[idx]["args"]["unittests"], "test_type": self.data[idx]["args"]["test_type"], "fn_name": self.data[idx]["args"].get("fn_name", None)}
         elif ("args" in self.data[idx] and task_name == "deepscaler") or "text" in self.data[idx]:
@@ -83,7 +83,7 @@ class AllTaskDataset:
             text_str = self.data[idx]["problem"]
             extra_verifier_info = {"ground_truth": self.data[idx]["expected_answer"]}
 
-        if self.apply_chat_template or task_name == "code":
+        if self.apply_chat_template or "code" in task_name:
             chat = []
             if self.system_prompt:
                 chat.append({"role": "system", "content": self.system_prompt})
