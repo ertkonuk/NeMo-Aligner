@@ -153,7 +153,8 @@ model:
     offload_adam_states: True
 
     # GRPO loss params
-    ratio_eps: 0.2
+    ratio_eps_low: 0.2
+    ratio_eps_high: 0.28
 
     # params for generation
     sampling_params:
