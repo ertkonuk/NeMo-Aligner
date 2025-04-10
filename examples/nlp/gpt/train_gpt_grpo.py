@@ -168,7 +168,7 @@ def main(cfg) -> None:
     # code_environment = CodeEnvironment(cfg.trainer.grpo.environments.code)
     # llm_judge_environment = LLMJudgeEnvironment(cfg.trainer.grpo.environments.llm_judge)
 
-    tasks_to_environments = {k:MathEnvironment(cfg.trainer.grpo.environments.math) for k in {"aime24", "amc23", "math", "qwq_sol_gen_no_ans_c4", "qwq_sol_gen_no_ans_c7", "qwq_sol_gen_no_ans_olymp_pr_gt03", "qwq_sol_gen_no_ans_olymp_pr_lt03"}}
+    tasks_to_environments = {k:MathEnvironment(cfg.trainer.grpo.environments.math) for k in {"aime24", "amc23", "math", "qwq_sol_gen_no_ans_c4", "qwq_sol_gen_no_ans_c7", "qwq_sol_gen_no_ans_olymp_pr_gt03", "qwq_sol_gen_no_ans_olymp_pr_lt03", "aime25", "deepscaler"}}
 
     tasks_to_environments["llm_judge_gpqa"] = LLMJudgeEnvironment(cfg.trainer.grpo.environments.llm_judge)
     tasks_to_environments["llm_judge_scp116k"] = LLMJudgeEnvironment(cfg.trainer.grpo.environments.llm_judge)

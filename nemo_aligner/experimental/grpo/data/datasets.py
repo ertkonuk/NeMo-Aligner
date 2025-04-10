@@ -65,11 +65,17 @@ class AllTaskDataset:
         Return a single prompt.
         """
         
-        task_name = self.data[idx]["task_name"]
+        #task_name = self.data[idx]["task_name"]
+        if "args" in self.data[idx]:
+            task_name = self.data[idx]["args"]["task"]
+        elif "task_name" not in self.data[idx]:
+            task_name = self.data[idx]["dataset"]
+        else:
+            task_name = self.data[idx]["task_name"]
 
         extra_verifier_info = None
         # hard code to math for now
-        if task_name == "code":
+        if "code" in task_name:
             text_str = self.data[idx]["prompt"]
             extra_verifier_info = {"unittests": self.data[idx]["args"]["unittests"], "test_type": self.data[idx]["args"]["test_type"], "fn_name": self.data[idx]["args"].get("fn_name", None)}
         elif ("args" in self.data[idx] and task_name == "deepscaler") or "text" in self.data[idx]:
@@ -84,7 +90,7 @@ class AllTaskDataset:
         else:
             raise NotImplementedError(f"task name {task_name} in your dataset doesn't have a handler yet!")
 
-        if self.apply_chat_template or task_name == "code":
+        if self.apply_chat_template or "code" in task_name:
             chat = []
             if self.system_prompt:
                 chat.append({"role": "system", "content": self.system_prompt})
