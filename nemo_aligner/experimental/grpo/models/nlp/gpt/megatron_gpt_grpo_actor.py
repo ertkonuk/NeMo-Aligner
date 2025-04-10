@@ -175,7 +175,9 @@ class MegatronGPTActorModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGen
         self._sampling_params = OmegaConf.to_container(self.cfg.grpo.sampling_params, resolve=True)
 
         self.to_offload_adam_states = self.cfg.grpo.offload_adam_states and self.with_distributed_adam
-        self.ratio_eps = self.cfg.grpo.ratio_eps
+        self.ratio_eps_low = self.cfg.grpo.ratio_eps_low
+        self.ratio_eps_high = self.cfg.grpo.ratio_eps_high
+        
         self.forward_micro_batch_size = self.cfg.grpo.forward_micro_batch_size
 
         # Initialize the inference backend
@@ -336,7 +338,7 @@ class MegatronGPTActorModel(NLPAdapterModelMixin, MegatronGPTModel, AlignableGen
 
                 # Calculate clipped GRPO surrogate loss function.
                 ratios = (curr_log_probs - prev_log_probs).exp()
-                ratios_clamped = ratios.clamp(1.0 - self.ratio_eps, 1.0 + self.ratio_eps)
+                ratios_clamped = ratios.clamp(1.0 - self.ratio_eps_low, 1.0 + self.ratio_eps_high)
 
                 loss1 = -advantages * ratios
                 loss2 = -advantages * ratios_clamped
