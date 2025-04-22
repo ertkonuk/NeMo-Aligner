@@ -43,7 +43,7 @@ trainer:
       length_penalty_params:
         max_length: 20480
         acceptable_length: 16384
-        
+
     environments:
       math:
         servers:
@@ -195,6 +195,9 @@ model:
     initial_policy_kl_penalty: ${trainer.grpo.initial_policy_kl_penalty}
     inference_backend: ${trainer.grpo.inference_backend}
 
+    dapo:
+      token_loss: False
+      
   peft:
     peft_scheme: "none"  # ["lora", "none"]
     restore_from_path: null
