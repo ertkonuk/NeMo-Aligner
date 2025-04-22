@@ -82,7 +82,8 @@ class AllTaskDataset:
             text_str = self.data[idx]["problem"]
             extra_verifier_info = {"ground_truth": self.data[idx]["expected_answer"]}
         else:
-            raise NotImplementedError(f"task name {task_name} in your dataset doesn't have a handler yet!")
+            text_str = self.data[idx]["problem"]
+            extra_verifier_info = {"ground_truth": self.data[idx]["expected_answer"]}
 
         if self.apply_chat_template or task_name == "code":
             chat = []

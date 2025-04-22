@@ -37,7 +37,13 @@ trainer:
     val_samples_per_prompt: 1 
     
     generation_save_dir: null
-    
+  
+    dapo:
+      length_penalty: False
+      length_penalty_params:
+        max_length: 20480
+        acceptable_length: 16384
+        
     environments:
       math:
         servers:
