@@ -37,7 +37,10 @@ def verify_code_worker(verifier: CodeVerifier,
 
             # Calculate reward based on test results
             num_passed = sum(1 for r in results if r.get('passed', False))
-            reward = num_passed / len(results) if results else 0.0
+            reward = 0.0
+            if results:
+                if num_passed == len(results):
+                    reward = 1.0
             
             # Include detailed results for debugging
             output_queue.put((idx, {
