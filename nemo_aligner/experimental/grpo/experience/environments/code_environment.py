@@ -20,6 +20,7 @@ from collections import Counter
 from nemo_aligner.experimental.grpo.utils import parallel_state
 from nemo_aligner.utils.utils import masked_mean
 from nemo_aligner.experimental.grpo.experience.interfaces import EnvironmentInterface
+from nemo_aligner.experimental.grpo.experience.environments.metrics import calculate_pass_rate_per_prompt
 from nemo_aligner.servers.http_communicator import FlaskCommunicator
 from nemo_aligner.experimental.grpo.experience.environments.format_checker import FormatChecker
 
@@ -142,6 +143,7 @@ class CodeEnvironment(EnvironmentInterface):
             
             # Overall accuracy metrics
             "accuracy": batch["rewards"].mean().item(),
+            "pass@samples_per_prompt": calculate_pass_rate_per_prompt(batch["text"], batch["rewards"]),
             
             # RL-specific metrics
             "fraction_prompts_with_perfect_solution": prompts_with_perfect_solution / num_prompts,
