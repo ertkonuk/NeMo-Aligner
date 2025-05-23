@@ -81,6 +81,12 @@ class AllTaskDataset:
         elif task_name == "math":
             text_str = self.data[idx]["problem"]
             extra_verifier_info = {"ground_truth": self.data[idx]["expected_answer"]}
+        elif task_name == "ifeval" or task_name == "instruction_following":
+            text_str = self.data[idx]["prompt"]
+            extra_verifier_info = {"args": self.data[idx]["args"]}
+        elif task_name == "bfcl":
+            text_str = self.data[idx]["prompt"]
+            extra_verifier_info = {"args": self.data[idx]["args"]}
         else:
             text_str = self.data[idx]["problem"]
             extra_verifier_info = {"ground_truth": self.data[idx]["expected_answer"]}
