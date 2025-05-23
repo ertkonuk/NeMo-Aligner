@@ -21,6 +21,7 @@ from nemo_aligner.utils.utils import masked_mean
 from nemo_aligner.experimental.grpo.experience.interfaces import EnvironmentInterface
 from nemo_aligner.experimental.grpo.experience.environments.metrics import calculate_pass_rate_per_prompt
 from nemo_aligner.servers.http_communicator import FlaskCommunicator
+from nemo_aligner.experimental.grpo.experience.environments.format_checker import FormatChecker
 
 class IFEvalEnvironment(EnvironmentInterface):
     def __init__(self, cfg: DictConfig):
@@ -37,6 +38,8 @@ class IFEvalEnvironment(EnvironmentInterface):
         if parallel_state.is_model_parallel_src_rank():
             # fold all interactions after the prompt together
             prompts = [interaction[0] for interaction in interactions]
+            full_responses = [''.join(interaction[1:]) for interaction in interactions]
+
             print("--------------------------------")
             print(f"prompts: {prompts}")
             print("--------------------------------")
@@ -45,10 +48,18 @@ class IFEvalEnvironment(EnvironmentInterface):
             print(f"responses: {responses}")
             print("********************************")
             args = [g["args"] for g in metadata]
+
+            print("### LEN OF PROMPTS", len(prompts))
+            print("### LEN OF FULL RESPONSES", len(full_responses))
+            print("### LEN OF IS END", len(is_end))
+            format_rewards = FormatChecker.calculate_format_metrics(prompts, full_responses, is_end)
+            print("### FORMAT REWARDS length", len(format_rewards))
+
             data = {
                 "pred_responses": responses,
                 "args": args,
                 "prompts": prompts,
+                "format_rewards": format_rewards,
             }
             print(f"data: {data}")
             return self.communicator.send_data_to_server("ifeval_grader", data)
@@ -69,11 +80,6 @@ class IFEvalEnvironment(EnvironmentInterface):
         Every rank will run this function, so you're free to use distributed 
         calculations if you'd prefer for heavy metrics. 
         """
-        table = {
-            "reward": batch["rewards"][0].item(),
-            "prompt_sentence": batch["prompt_sentences"][0],
-            "response_sentence": batch["response_sentences"][0],
-        }
         pre_is_end_reward = batch["rewards"].mean().item()
         batch["rewards"] = batch["rewards"] * batch["is_end"] # set a reward of 0 for any incorrectly ended sequences
 
@@ -86,6 +92,12 @@ class IFEvalEnvironment(EnvironmentInterface):
             )
         else:
             correct_solution_generation_lengths = 0
+
+        format_rewards = FormatChecker.calculate_format_metrics(
+            batch["prompt_sentences"],
+            batch["response_sentences"],
+            batch["is_end"]
+        )
         
         metrics = {
             #"table": table, TODO @sahilj WIP
@@ -100,6 +112,7 @@ class IFEvalEnvironment(EnvironmentInterface):
             "prompt_lengths": batch["prompt_lengths"].float().mean().item(),
             "generation_lengths": (batch["response_lengths"] - batch["prompt_lengths"]).float().mean().item(),
             "correct_solution_generation_lengths": correct_solution_generation_lengths,
+            "if_eval_format_rewards": torch.tensor(format_rewards).float().mean().item(),
         }
         
         return batch, metrics
