@@ -31,6 +31,8 @@ from nemo_aligner.experimental.grpo.data.datasets import AllTaskDataset
 from nemo_aligner.experimental.grpo.models.nlp.gpt.megatron_gpt_grpo_actor import MegatronGPTActorModel
 from nemo_aligner.experimental.grpo.experience.environments.math_environment import MathEnvironment
 from nemo_aligner.experimental.grpo.experience.environments.code_environment import CodeEnvironment
+from nemo_aligner.experimental.grpo.experience.environments.ifeval_environment import IFEvalEnvironment
+from nemo_aligner.experimental.grpo.experience.environments.bfcl_environment import BFCLEnvironment
 from nemo_aligner.experimental.grpo.experience.environments.llm_judge_environment import LLMJudgeEnvironment
 from nemo_aligner.experimental.grpo.experience.rollout_generator import SequenceRewardRolloutGenerator
 from nemo_aligner.utils import parallel_state
@@ -177,6 +179,9 @@ def main(cfg) -> None:
     tasks_to_environments["llm_judge_aime25"] = LLMJudgeEnvironment(cfg.trainer.grpo.environments.llm_judge)
     # your_environment = Environment(cfg)
     tasks_to_environments["code"] = CodeEnvironment(cfg.trainer.grpo.environments.code)
+    tasks_to_environments["ifeval"] = IFEvalEnvironment(cfg.trainer.grpo.environments.ifeval)
+    tasks_to_environments["instruction_following"] = IFEvalEnvironment(cfg.trainer.grpo.environments.ifeval)
+    tasks_to_environments["bfcl"] = BFCLEnvironment(cfg.trainer.grpo.environments.bfcl)
     # tasks_to_environments["code_mbppplus_test"] = CodeEnvironment(cfg.trainer.grpo.environments.code)
     rollout_generator = SequenceRewardRolloutGenerator(cfg.trainer.grpo, tasks_to_environments)
 

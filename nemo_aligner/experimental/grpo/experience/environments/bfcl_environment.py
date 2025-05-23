@@ -41,6 +41,7 @@ class BFCLEnvironment(EnvironmentInterface):
             print(f"prompts: {prompts}")
             print("--------------------------------")
             responses = [interaction[-1] for interaction in interactions]
+            responses = [r.split("</think>")[-1].strip() for r in responses]
             print("********************************")
             print(f"responses: {responses}")
             print("********************************")
