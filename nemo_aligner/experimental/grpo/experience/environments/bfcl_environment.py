@@ -51,7 +51,7 @@ class BFCLEnvironment(EnvironmentInterface):
                 "args": args,
             }
             print(f"data: {data}")
-            return self.communicator.send_data_to_server("bfcl_grader", data)
+            return self.communicator.send_data_to_server("ast_grader", data)
         return None
 
     def finish_step(self, future):
